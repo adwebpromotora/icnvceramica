@@ -151,15 +151,7 @@ export async function uploadImage(file: File): Promise<string> {
 export function useMediaUrl(path?: string | null) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!path) {
-      setUrl(null);
-      return;
-    }
-    if (path.startsWith("http") || path.startsWith("/") || path.startsWith("data:")) {
-      setUrl(path);
-      return;
-    }
-    setUrl(`/uploads/${path}`);
+    import("@/lib/media").then(({ mediaUrl }) => setUrl(mediaUrl(path)));
   }, [path]);
   return url;
 }

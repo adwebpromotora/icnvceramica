@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, CalendarDays } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { useEffect, useMemo, useState } from "react";
 import { Container, SectionHead, ServiceTimes } from "@/components/site/Blocks";
 import { SpotifyEpisode } from "@/components/site/SpotifyEpisode";
 import { churchAge, images, ministries, fmtDate, fmtTime } from "@/lib/site-data";
@@ -9,9 +8,9 @@ import {
   getPublicSettingsFn,
   listPublicEventsFn,
 } from "@/lib/public.functions";
-import { useSession } from "@/lib/admin";
-import { uploadImageFn } from "@/lib/admin.functions";
-import { saveTextOverrideFn, loadTextOverridesFn } from "@/components/site/UniversalEdit";
+import { loadTextOverridesFn } from "@/components/site/UniversalEdit";
+import { EditableImage } from "@/components/site/EditableImage";
+import { mediaUrl } from "@/lib/media";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -50,9 +49,6 @@ function Home() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [events, setEvents] = useState<Ev[] | null>(null);
   const [heroSrc, setHeroSrc] = useState<string>(images.heroChurch);
-  const { role, loading: sessionLoading } = useSession();
-  const canEdit = !sessionLoading && (role === "admin" || role === "editor");
-
   useEffect(() => {
     getPublicSettingsFn()
       .then((s) =>
@@ -139,7 +135,16 @@ function Home() {
             </div>
 
             <div className="relative lg:col-span-5">
-              <HeroImage src={heroSrc} canEdit={canEdit} onChange={setHeroSrc} />
+              <EditableImage
+                src={heroSrc}
+                alt="Templo e comunidade"
+                storageKey="hero-image"
+                path="/"
+                width={1024}
+                height={1280}
+                className="aspect-[4/5] w-full rounded-[24px] object-cover ring-1 ring-border"
+                onChange={setHeroSrc}
+              />
               {/* Próximo culto / próxima agenda — fundo opaco */}
               <div className="absolute -bottom-5 left-4 max-w-[260px] rounded-[18px] border border-border bg-background/95 p-4 shadow-xl backdrop-blur-md sm:left-6">
                 <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-accent">
@@ -232,15 +237,14 @@ function Home() {
                   className="glass group overflow-hidden rounded-[20px] transition hover:-translate-y-0.5"
                 >
                   <div className="relative aspect-[16/10] bg-secondary">
-                    {e.cover_path ? (
+                    {mediaUrl(e.cover_path) ? (
                       <img
-                        src={
-                          e.cover_path.startsWith("/") || e.cover_path.startsWith("http")
-                            ? e.cover_path
-                            : `/uploads/${e.cover_path}`
-                        }
+                        src={mediaUrl(e.cover_path)!}
                         alt=""
                         className="size-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        onError={(ev) => {
+                          (ev.target as HTMLImageElement).style.display = "none";
+                        }}
                       />
                     ) : (
                       <div className="grid size-full place-items-center text-muted-foreground">
@@ -353,13 +357,15 @@ function Home() {
                 </Link>
               </div>
             </div>
-            <img
-              src={images.community}
+            <EditableImage
+              src={communitySrc}
               alt="Famílias da igreja reunidas e sorrindo"
-              loading="lazy"
+              storageKey="home-onde-estamos-image"
+              path="/"
               width={1280}
               height={960}
               className="min-h-[320px] w-full rounded-[24px] object-cover ring-1 ring-border"
+              onChange={setCommunitySrc}
             />
           </div>
         </Container>
@@ -368,77 +374,3 @@ function Home() {
   );
 }
 
-function HeroImage({
-  src,
-  canEdit,
-  onChange,
-}: {
-  src: string;
-  canEdit: boolean;
-  onChange: (url: string) => void;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-
-  const onFile = async (file?: File) => {
-    if (!file || !canEdit) return;
-    setBusy(true);
-    try {
-      const buf = await file.arrayBuffer();
-      const bytes = new Uint8Array(buf);
-      let binary = "";
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
-      const base64 = btoa(binary);
-      const mime = (["image/jpeg", "image/png", "image/webp"].includes(file.type)
-        ? file.type
-        : "image/jpeg") as "image/jpeg" | "image/png" | "image/webp";
-      const result = await uploadImageFn({
-        data: { filename: file.name, mime, base64 },
-      });
-      if (!result.ok) {
-        toast.error(result.error || "Falha no envio");
-        return;
-      }
-      const url = `/uploads/${result.path}`;
-      await saveTextOverrideFn({ data: { path: "/", key: "hero-image", value: result.path } });
-      onChange(url);
-      toast.success("Imagem do hero atualizada");
-    } catch (e) {
-      console.error(e);
-      toast.error("Não foi possível trocar a imagem");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="relative">
-      <img
-        src={src}
-        alt="Templo e comunidade"
-        width={1024}
-        height={1280}
-        className={`aspect-[4/5] w-full rounded-[24px] object-cover ring-1 ring-border ${canEdit ? "cursor-pointer" : ""}`}
-        onClick={() => canEdit && inputRef.current?.click()}
-        title={canEdit ? "Clique para trocar a imagem" : undefined}
-      />
-      {canEdit && (
-        <button
-          type="button"
-          className="absolute right-3 top-3 rounded-full bg-background/95 px-3 py-1.5 text-xs font-semibold shadow-md ring-1 ring-border"
-          onClick={() => inputRef.current?.click()}
-          disabled={busy}
-        >
-          {busy ? "Enviando…" : "Trocar imagem"}
-        </button>
-      )}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        className="hidden"
-        onChange={(e) => onFile(e.target.files?.[0])}
-      />
-    </div>
-  );
-}

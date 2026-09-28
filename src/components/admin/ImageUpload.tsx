@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Loader2, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { uploadImageFn } from "@/lib/admin.functions";
-import { useMediaUrl } from "@/lib/admin";
+import { mediaUrl } from "@/lib/media";
 import { btnGhost } from "./AdminShell";
 
 const ALLOWED = {
@@ -19,7 +19,7 @@ export function ImageUpload({
   onChange: (path: string | null) => void;
 }) {
   const [busy, setBusy] = useState(false);
-  const url = useMediaUrl(value);
+  const url = mediaUrl(value);
 
   const onFile = async (file: File | undefined) => {
     if (!file) return;
