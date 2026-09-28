@@ -72,6 +72,57 @@ export function slugify(s: string) {
     .slice(0, 80);
 }
 
+/** Idade da igreja a partir de uma data ISO (YYYY-MM-DD). */
+export function churchAgeFrom(foundedAt: string | null | undefined, now = new Date()) {
+  const raw = foundedAt && foundedAt.length >= 8 ? foundedAt : "1997-03-15";
+  const f = new Date(raw);
+  if (Number.isNaN(f.getTime())) {
+    return { years: 0, months: 0, sinceYear: now.getFullYear() };
+  }
+  let years = now.getFullYear() - f.getFullYear();
+  let months = now.getMonth() - f.getMonth();
+  if (now.getDate() < f.getDate()) months--;
+  if (months < 0) {
+    years--;
+    months += 12;
+  }
+  return { years, months, sinceYear: f.getFullYear() };
+}
+
+/**
+ * Registro de auditoria a partir do cliente (fire-and-forget).
+ * Em produção grava via server function; falhas são ignoradas para não bloquear a UI.
+ */
+export function audit(action: string, entity?: string, entityId?: string) {
+  void (async () => {
+    try {
+      await auditFn({ data: { action, entity: entity ?? null, entityId: entityId ?? null } });
+    } catch {
+      /* ignore */
+    }
+  })();
+}
+
+export const auditFn = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z
+      .object({
+        action: z.string().min(1).max(80),
+        entity: z.string().max(80).nullable().optional(),
+        entityId: z.string().max(80).nullable().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const { getUserFromToken, readSessionToken, audit: writeAudit } = await import("@/server/auth");
+    const req = getRequest();
+    const token = readSessionToken(req.headers.get("cookie"));
+    const user = await getUserFromToken(token);
+    await writeAudit(user?.id ?? null, data.action, data.entity ?? undefined, data.entityId ?? undefined);
+    return { ok: true };
+  });
+
+
 const ALLOWED = {
   "image/jpeg": [0xff, 0xd8, 0xff],
   "image/png": [0x89, 0x50, 0x4e, 0x47],
