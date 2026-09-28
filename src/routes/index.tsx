@@ -3,6 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { Container, EventCard, SectionHead, ServiceTimes } from "@/components/site/Blocks";
 import { SpotifyEpisode } from "@/components/site/SpotifyEpisode";
 import { church, churchAge, events, images, ministries, spotify } from "@/lib/site-data";
+import { InlineEdit } from "@/components/site/InlineEdit";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -31,9 +32,12 @@ function Home() {
                   Igreja Cristã Nova Vida · Cerâmica
                 </span>
               </div>
-              <h1 className="rise-2 mt-6 max-w-[18ch] font-serif text-4xl font-medium leading-tight text-balance sm:text-5xl lg:text-6xl">
-                Onde uma nova vida espera por você
-              </h1>
+              <InlineEdit
+                as="h1"
+                className="rise-2 mt-6 max-w-[18ch] font-serif text-4xl font-medium leading-tight text-balance sm:text-5xl lg:text-6xl"
+                value="Onde uma nova vida espera por você"
+                onSave={async () => { /* texto da home ainda estático — use páginas dinâmicas para persistir */ }}
+              />
               <p className="rise-2 mt-5 max-w-[46ch] text-base text-pretty text-muted-foreground sm:text-lg">
                  Uma comunidade acolhedora no coração do bairro, onde cada pessoa é recebida pelo nome e cuidada com fé, Palavra e música.
               </p>

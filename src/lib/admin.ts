@@ -68,7 +68,7 @@ export function slugify(s: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|$)/g, "")
+    .replace(/(^-|-$)/g, "")
     .slice(0, 80);
 }
 
@@ -208,3 +208,15 @@ export const needsFirstAdminFn = createServerFn({ method: "GET" }).handler(async
   const { countAdmins } = await import("@/server/auth");
   return { needsSetup: (await countAdmins()) === 0 };
 });
+
+
+/** Helper cliente para gravação inline no site. */
+export async function saveInlineHelper(
+  entity: "pages" | "events" | "sermons" | "site_settings",
+  id: string,
+  field: string,
+  value: string,
+) {
+  const { saveInlineTextFn } = await import("@/lib/admin.functions");
+  return saveInlineTextFn({ data: { entity, id, field, value } });
+}

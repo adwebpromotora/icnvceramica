@@ -42,7 +42,7 @@ export function AdminShell({ title, actions, children }: { title: string; action
   const Side = (
     <nav className="flex h-full flex-col gap-1 p-4">
       <div className="mb-6 flex items-center gap-2 px-2">
-        <span className="grid size-9 place-items-center rounded-lg bg-primary font-serif text-xs font-semibold text-primary-foreground">ICNV</span>
+        <span className="grid size-10 place-items-center rounded-[12px] bg-primary font-serif text-xs font-semibold tracking-tight text-primary-foreground ring-1 ring-black/10">ICNV</span>
         <span className="font-serif text-lg">Cerâmica</span>
       </div>
       {items.filter((i) => !i.admin || role === "admin").map((i) => (

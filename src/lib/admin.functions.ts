@@ -1,12 +1,20 @@
 /**
  * Server functions do painel admin — MySQL local.
- * Mantém as mesmas responsabilidades do backend anterior (usuários, conteúdo, settings).
  */
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { getUserFromToken, readSessionToken, audit, type SessionUser } from "@/server/auth";
+import { getUserFromToken, readSessionToken, audit, hashPassword, type SessionUser } from "@/server/auth";
 import { execute, query, uuid } from "@/server/db";
+import {
+  listContent,
+  saveContent,
+  deleteContent,
+  dashboardStats,
+  type ContentTable,
+} from "@/server/cms";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
 async function requireUser(): Promise<SessionUser> {
   const req = getRequest();
@@ -28,6 +36,153 @@ async function requireStaff(): Promise<SessionUser> {
   return user;
 }
 
+// ---------- Dashboard ----------
+export const getDashboardStats = createServerFn({ method: "GET" }).handler(async () => {
+  await requireStaff();
+  return dashboardStats();
+});
+
+// ---------- Conteúdo (eventos / sermões / páginas) ----------
+export const listContentFn = createServerFn({ method: "GET" })
+  .inputValidator((d) => z.object({ table: z.enum(["events", "sermons", "pages"]) }).parse(d))
+  .handler(async ({ data }) => {
+    await requireStaff();
+    return listContent(data.table as ContentTable);
+  });
+
+export const saveContentFn = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z
+      .object({
+        table: z.enum(["events", "sermons", "pages"]),
+        payload: z.record(z.unknown()),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const user = await requireStaff();
+    const result = await saveContent(data.table as ContentTable, data.payload, user.id);
+    if (result.ok) {
+      await audit(
+        user.id,
+        data.payload.id ? "update" : "create",
+        data.table,
+        result.id,
+      );
+    }
+    return result;
+  });
+
+export const deleteContentFn = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z.object({ table: z.enum(["events", "sermons", "pages"]), id: z.string().min(1) }).parse(d),
+  )
+  .handler(async ({ data }) => {
+    const user = await requireStaff();
+    await deleteContent(data.table as ContentTable, data.id);
+    await audit(user.id, "delete", data.table, data.id);
+    return { ok: true as const };
+  });
+
+// ---------- Upload de imagem (base64 → disco) ----------
+export const uploadImageFn = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z
+      .object({
+        filename: z.string().min(1).max(200),
+        mime: z.enum(["image/jpeg", "image/png", "image/webp"]),
+        base64: z.string().min(1),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    await requireStaff();
+    const buf = Buffer.from(data.base64, "base64");
+    const max = Number(process.env.UPLOAD_MAX_BYTES || 5 * 1024 * 1024);
+    if (buf.length > max) return { ok: false as const, error: "A imagem precisa ter até 5 MB." };
+
+    const ext =
+      data.mime === "image/png" ? "png" : data.mime === "image/webp" ? "webp" : "jpg";
+    const year = new Date().getFullYear();
+    const name = `${crypto.randomUUID()}.${ext}`;
+    const rel = `${year}/${name}`;
+    const root = process.env.UPLOAD_DIR || "./uploads";
+    const dir = join(root, String(year));
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, name), buf);
+    return { ok: true as const, path: rel };
+  });
+
+// ---------- Settings ----------
+export const getSettingsAdmin = createServerFn({ method: "GET" }).handler(async () => {
+  await requireStaff();
+  const rows = await query<Record<string, unknown>[]>(
+    "SELECT * FROM site_settings WHERE id = 1 LIMIT 1",
+  );
+  return rows[0] ?? null;
+});
+
+export const saveSettings = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.record(z.unknown()).parse(d))
+  .handler(async ({ data }) => {
+    const user = await requireStaff();
+    const allowed = [
+      "church_name",
+      "address",
+      "phone",
+      "email",
+      "pix_key",
+      "founded_at",
+      "spotify_embed_url",
+      "spotify_show_url",
+      "logo_path",
+      "primary_color",
+      "accent_color",
+      "show_back_to_top",
+    ] as const;
+    const adminOnly = [
+      "gtm_id",
+      "smtp_host",
+      "smtp_port",
+      "smtp_user",
+      "smtp_pass",
+      "smtp_from",
+      "smtp_secure",
+    ] as const;
+
+    const fields: string[] = [];
+    const params: Record<string, unknown> = {};
+    for (const k of allowed) {
+      if (data[k] === undefined) continue;
+      fields.push(`${k} = :${k}`);
+      params[k] = typeof data[k] === "boolean" ? (data[k] ? 1 : 0) : data[k];
+    }
+    if (user.role === "admin") {
+      for (const k of adminOnly) {
+        if (data[k] === undefined) continue;
+        fields.push(`${k} = :${k}`);
+        params[k] = typeof data[k] === "boolean" ? (data[k] ? 1 : 0) : data[k];
+      }
+    }
+    if (!fields.length) return { ok: true as const };
+    await execute(`UPDATE site_settings SET ${fields.join(", ")} WHERE id = 1`, params);
+    await audit(user.id, "update_settings", "site_settings", "1");
+    return { ok: true as const };
+  });
+
+// ---------- Users ----------
+export const listUsers = createServerFn({ method: "GET" }).handler(async () => {
+  await requireAdmin();
+  return query<
+    { id: string; email: string; full_name: string; role: string | null; created_at: string }[]
+  >(
+    `SELECT u.id, u.email, u.full_name, ur.role, u.created_at
+     FROM users u
+     LEFT JOIN user_roles ur ON ur.user_id = u.id
+     ORDER BY u.created_at ASC`,
+  );
+});
+
 export const createTeamUser = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z
@@ -41,7 +196,6 @@ export const createTeamUser = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const admin = await requireAdmin();
-    const { hashPassword } = await import("@/server/auth");
     const id = uuid();
     const ph = await hashPassword(data.password);
     try {
@@ -67,11 +221,13 @@ export const createTeamUser = createServerFn({ method: "POST" })
 
 export const setUserRole = createServerFn({ method: "POST" })
   .inputValidator((d) =>
-    z.object({ userId: z.string().uuid(), role: z.enum(["admin", "editor", "none"]) }).parse(d),
+    z.object({ userId: z.string().min(1), role: z.enum(["admin", "editor", "none"]) }).parse(d),
   )
   .handler(async ({ data }) => {
     const admin = await requireAdmin();
-    if (data.userId === admin.id) return { ok: false as const, error: "Você não pode alterar o próprio papel." };
+    if (data.userId === admin.id) {
+      return { ok: false as const, error: "Você não pode alterar o próprio papel." };
+    }
     await execute("DELETE FROM user_roles WHERE user_id = :uid", { uid: data.userId });
     if (data.role !== "none") {
       await execute("INSERT INTO user_roles (id, user_id, role) VALUES (:id, :uid, :role)", {
@@ -84,110 +240,124 @@ export const setUserRole = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-export const listUsers = createServerFn({ method: "GET" }).handler(async () => {
-  await requireAdmin();
-  const rows = await query<
-    { id: string; email: string; full_name: string; role: string | null; created_at: string }[]
-  >(
-    `SELECT u.id, u.email, u.full_name, ur.role, u.created_at
-     FROM users u
-     LEFT JOIN user_roles ur ON ur.user_id = u.id
-     ORDER BY u.created_at ASC`,
-  );
-  return rows;
-});
-
-export const getDashboardStats = createServerFn({ method: "GET" }).handler(async () => {
+// ---------- Formulários ----------
+export const listFormsFn = createServerFn({ method: "GET" }).handler(async () => {
   await requireStaff();
-  const [pages] = await query<{ c: number }[]>("SELECT COUNT(*) AS c FROM pages");
-  const [events] = await query<{ c: number }[]>("SELECT COUNT(*) AS c FROM events");
-  const [sermons] = await query<{ c: number }[]>("SELECT COUNT(*) AS c FROM sermons");
-  const [forms] = await query<{ c: number }[]>("SELECT COUNT(*) AS c FROM forms");
-  const [responses] = await query<{ c: number }[]>("SELECT COUNT(*) AS c FROM form_responses");
-  const upcoming = await query<
-    { id: string; title: string; starts_at: string; location: string | null }[]
-  >(
-    `SELECT id, title, starts_at, location FROM events
-     WHERE published = 1 AND starts_at >= NOW() ORDER BY starts_at ASC LIMIT 5`,
+  return query<Record<string, unknown>[]>(
+    "SELECT * FROM forms ORDER BY created_at DESC",
   );
-  const recentSermons = await query<{ id: string; title: string; preached_at: string | null }[]>(
-    `SELECT id, title, preached_at FROM sermons WHERE published = 1 ORDER BY preached_at DESC LIMIT 5`,
-  );
-  return {
-    pages: Number(pages?.c ?? 0),
-    events: Number(events?.c ?? 0),
-    sermons: Number(sermons?.c ?? 0),
-    forms: Number(forms?.c ?? 0),
-    responses: Number(responses?.c ?? 0),
-    upcoming,
-    recentSermons,
-  };
 });
 
-export const getSettingsAdmin = createServerFn({ method: "GET" }).handler(async () => {
-  await requireStaff();
-  const rows = await query<Record<string, unknown>[]>("SELECT * FROM site_settings WHERE id = 1 LIMIT 1");
-  return rows[0] ?? null;
-});
-
-export const saveSettings = createServerFn({ method: "POST" })
+export const saveFormFn = createServerFn({ method: "POST" })
   .inputValidator((d) =>
     z
       .object({
-        church_name: z.string().max(200).optional(),
-        address: z.string().max(500).optional(),
-        phone: z.string().max(40).optional(),
-        email: z.string().max(255).optional(),
-        pix_key: z.string().max(255).optional(),
-        founded_at: z.string().nullable().optional(),
-        spotify_embed_url: z.string().max(500).optional(),
-        spotify_show_url: z.string().max(500).optional(),
-        logo_path: z.string().max(500).nullable().optional(),
-        primary_color: z.string().max(20).optional(),
-        accent_color: z.string().max(20).optional(),
-        show_back_to_top: z.boolean().optional(),
-        gtm_id: z.string().max(40).nullable().optional(),
-        smtp_host: z.string().max(255).nullable().optional(),
-        smtp_port: z.number().nullable().optional(),
-        smtp_user: z.string().max(255).nullable().optional(),
-        smtp_pass: z.string().max(255).nullable().optional(),
-        smtp_from: z.string().max(255).nullable().optional(),
-        smtp_secure: z.boolean().optional(),
+        id: z.string().optional(),
+        title: z.string().min(1).max(200),
+        slug: z.string().min(1).max(120),
+        description: z.string().nullable().optional(),
+        fields_json: z.unknown(),
+        active: z.boolean().optional(),
       })
       .parse(d),
   )
   .handler(async ({ data }) => {
     const user = await requireStaff();
-    // GTM e SMTP só admin
-    if (
-      user.role !== "admin" &&
-      (data.gtm_id !== undefined ||
-        data.smtp_host !== undefined ||
-        data.smtp_port !== undefined ||
-        data.smtp_user !== undefined ||
-        data.smtp_pass !== undefined ||
-        data.smtp_from !== undefined ||
-        data.smtp_secure !== undefined)
-    ) {
-      throw new Error("Acesso negado às configurações sensíveis");
+    const id = data.id || uuid();
+    const fieldsJson =
+      typeof data.fields_json === "string"
+        ? data.fields_json
+        : JSON.stringify(data.fields_json ?? []);
+    try {
+      if (data.id) {
+        await execute(
+          `UPDATE forms SET title=:title, slug=:slug, description=:description,
+           fields_json=:fields, active=:active WHERE id=:id`,
+          {
+            id,
+            title: data.title,
+            slug: data.slug,
+            description: data.description ?? null,
+            fields: fieldsJson,
+            active: data.active === false ? 0 : 1,
+          },
+        );
+      } else {
+        await execute(
+          `INSERT INTO forms (id, title, slug, description, fields_json, active, created_by)
+           VALUES (:id, :title, :slug, :description, :fields, :active, :uid)`,
+          {
+            id,
+            title: data.title,
+            slug: data.slug,
+            description: data.description ?? null,
+            fields: fieldsJson,
+            active: data.active === false ? 0 : 1,
+            uid: user.id,
+          },
+        );
+      }
+      await audit(user.id, data.id ? "update" : "create", "forms", id);
+      return { ok: true as const, id };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Erro";
+      if (msg.includes("Duplicate")) return { ok: false as const, error: "Slug já existe." };
+      return { ok: false as const, error: msg };
     }
-    const fields: string[] = [];
-    const params: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(data)) {
-      if (v === undefined) continue;
-      fields.push(`${k} = :${k}`);
-      if (typeof v === "boolean") params[k] = v ? 1 : 0;
-      else params[k] = v;
-    }
-    if (!fields.length) return { ok: true };
-    await execute(`UPDATE site_settings SET ${fields.join(", ")} WHERE id = 1`, params);
-    await audit(user.id, "update_settings", "site_settings", "1");
-    return { ok: true };
   });
 
-export const listAuditLogs = createServerFn({ method: "GET" }).handler(async () => {
-  await requireAdmin();
-  return query<
-    { id: string; user_id: string | null; action: string; entity: string | null; entity_id: string | null; created_at: string }[]
-  >(`SELECT id, user_id, action, entity, entity_id, created_at FROM audit_logs ORDER BY created_at DESC LIMIT 200`);
-});
+export const deleteFormFn = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ id: z.string().min(1) }).parse(d))
+  .handler(async ({ data }) => {
+    const user = await requireStaff();
+    await execute("DELETE FROM forms WHERE id = :id", { id: data.id });
+    await audit(user.id, "delete", "forms", data.id);
+    return { ok: true as const };
+  });
+
+export const listFormResponsesFn = createServerFn({ method: "GET" })
+  .inputValidator((d) => z.object({ formId: z.string().min(1) }).parse(d))
+  .handler(async ({ data }) => {
+    await requireStaff();
+    return query<Record<string, unknown>[]>(
+      "SELECT * FROM form_responses WHERE form_id = :fid ORDER BY created_at DESC LIMIT 500",
+      { fid: data.formId },
+    );
+  });
+
+// ---------- Inline edit (site público) ----------
+export const saveInlineTextFn = createServerFn({ method: "POST" })
+  .inputValidator((d) =>
+    z
+      .object({
+        entity: z.enum(["pages", "events", "sermons", "site_settings"]),
+        id: z.string().min(1),
+        field: z.string().min(1).max(40),
+        value: z.string(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
+    const user = await requireStaff();
+    const allowed: Record<string, string[]> = {
+      pages: ["title", "content"],
+      events: ["title", "summary", "content", "location"],
+      sermons: ["title", "summary", "content", "preacher"],
+      site_settings: ["church_name", "address", "phone", "email"],
+    };
+    if (!allowed[data.entity]?.includes(data.field)) {
+      return { ok: false as const, error: "Campo não editável." };
+    }
+    if (data.entity === "site_settings") {
+      await execute(`UPDATE site_settings SET \`${data.field}\` = :v WHERE id = 1`, {
+        v: data.value,
+      });
+    } else {
+      await execute(
+        `UPDATE \`${data.entity}\` SET \`${data.field}\` = :v WHERE id = :id`,
+        { v: data.value, id: data.id },
+      );
+    }
+    await audit(user.id, "inline_edit", data.entity, data.id, { field: data.field });
+    return { ok: true as const };
+  });

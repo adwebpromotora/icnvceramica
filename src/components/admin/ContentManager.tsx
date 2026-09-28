@@ -1,97 +1,245 @@
 import { useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { audit, slugify } from "@/lib/admin";
+import { slugify } from "@/lib/admin";
+import { listContentFn, saveContentFn, deleteContentFn } from "@/lib/admin.functions";
 import { AdminShell, inputCls, btnPrimary, btnGhost } from "./AdminShell";
 import { RichEditor } from "./RichEditor";
 import { ImageUpload } from "./ImageUpload";
 
-export type Field = { key: string; label: string; type: "text" | "datetime" | "date" | "rich" | "image" | "bool" | "number" | "url"; required?: boolean; hint?: string };
+export type Field = {
+  key: string;
+  label: string;
+  type: "text" | "datetime" | "date" | "rich" | "image" | "bool" | "number" | "url";
+  required?: boolean;
+  hint?: string;
+};
 
-type Row = any;
+type Row = Record<string, unknown>;
 
-// Gerenciador genérico reutilizável: serve para agenda, mensagens, páginas e futuros tipos de post.
-export function ContentManager({ table, title, singular, fields, listCols, orderBy, defaults }: {
-  table: "events" | "sermons" | "pages"; title: string; singular: string; fields: Field[];
-  listCols: { key: string; label: string; fmt?: (v: any) => string }[]; orderBy: string; defaults: Record<string, any>;
+export function ContentManager({
+  table,
+  title,
+  singular,
+  fields,
+  listCols,
+  orderBy,
+  defaults,
+}: {
+  table: "events" | "sermons" | "pages";
+  title: string;
+  singular: string;
+  fields: Field[];
+  listCols: { key: string; label: string; fmt?: (v: unknown) => string }[];
+  orderBy: string;
+  defaults: Record<string, unknown>;
 }) {
   const [rows, setRows] = useState<Row[] | null>(null);
-  const [edit, setEdit] = useState<any>(null);
+  const [edit, setEdit] = useState<Record<string, unknown> | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    const { data } = await supabase.from(table).select("*").order(orderBy, { ascending: false });
-    setRows((data as Row[]) ?? []);
+    try {
+      const data = await listContentFn({ data: { table } });
+      setRows((data as Row[]) ?? []);
+    } catch (e) {
+      console.error(e);
+      toast.error("Não foi possível carregar a lista.");
+      setRows([]);
+    }
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table]);
 
   const save = async () => {
     if (!edit) return;
-    for (const f of fields) if (f.required && !edit[f.key]) { toast.error(`Preencha: ${f.label}`); return; }
+    for (const f of fields) {
+      if (f.required && !edit[f.key]) {
+        toast.error(`Preencha: ${f.label}`);
+        return;
+      }
+    }
     setSaving(true);
-    const payload: any = { ...edit, slug: edit.slug || slugify(edit.title) };
-    for (const f of fields) if ((f.type === "datetime") && payload[f.key]) payload[f.key] = new Date(payload[f.key]).toISOString();
-    delete payload.created_at; delete payload.updated_at;
-    const q = payload.id ? supabase.from(table).update(payload as never).eq("id", payload.id) : supabase.from(table).insert(payload as never);
-    const { error } = await q;
-    setSaving(false);
-    if (error) { toast.error(error.message.includes("duplicate") ? "Já existe um item com esse endereço (slug)." : "Não foi possível salvar."); return; }
-    audit(payload.id ? "update" : "create", table, payload.id);
-    toast.success("Salvo!");
-    setEdit(null); load();
+    const payload: Record<string, unknown> = {
+      ...edit,
+      slug: (edit.slug as string) || slugify(String(edit.title ?? "")),
+    };
+    for (const f of fields) {
+      if (f.type === "datetime" && payload[f.key]) {
+        payload[f.key] = new Date(String(payload[f.key])).toISOString();
+      }
+    }
+    delete payload.created_at;
+    delete payload.updated_at;
+    try {
+      const result = await saveContentFn({ data: { table, payload } });
+      setSaving(false);
+      if (!result.ok) {
+        toast.error(result.error || "Não foi possível salvar.");
+        return;
+      }
+      toast.success("Salvo!");
+      setEdit(null);
+      load();
+    } catch (e) {
+      setSaving(false);
+      console.error(e);
+      toast.error("Não foi possível salvar.");
+    }
   };
+
   const remove = async (r: Row) => {
     if (!confirm(`Excluir "${r.title}"?`)) return;
-    await supabase.from(table).delete().eq("id", r.id);
-    audit("delete", table, r.id); load();
+    try {
+      await deleteContentFn({ data: { table, id: String(r.id) } });
+      load();
+    } catch {
+      toast.error("Não foi possível excluir.");
+    }
   };
-  const toLocal = (v?: string) => v ? new Date(new Date(v).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
 
-  if (edit) {
-    return (
-      <AdminShell title={edit.id ? `Editar ${singular}` : `Novo(a) ${singular}`} actions={<>
-        <button className={btnGhost} onClick={() => setEdit(null)}>Cancelar</button>
-        <button className={btnPrimary} onClick={save} disabled={saving}>{saving && <Loader2 className="size-4 animate-spin" />}Salvar</button>
-      </>}>
-        <div className="mx-auto grid max-w-4xl gap-5">
-          {fields.map((f) => (
-            <div key={f.key}>
-              <label className="mb-1.5 block text-sm font-medium">{f.label}{f.required && " *"}</label>
-              {f.type === "rich" ? <RichEditor value={edit[f.key] ?? ""} onChange={(v) => setEdit((e: any) => ({ ...e, [f.key]: v }))} />
-              : f.type === "image" ? <div className="max-w-md"><ImageUpload value={edit[f.key] ?? null} onChange={(v) => setEdit((e: any) => ({ ...e, [f.key]: v }))} /></div>
-              : f.type === "bool" ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!edit[f.key]} onChange={(e) => setEdit({ ...edit, [f.key]: e.target.checked })} />Sim</label>
-              : <input className={inputCls} type={f.type === "datetime" ? "datetime-local" : f.type === "date" ? "date" : f.type === "number" ? "number" : f.type === "url" ? "url" : "text"}
-                  value={f.type === "datetime" ? toLocal(edit[f.key]) : edit[f.key] ?? ""}
-                  onChange={(e) => setEdit({ ...edit, [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value || null })} />}
-              {f.hint && <p className="mt-1 text-xs text-muted-foreground">{f.hint}</p>}
-            </div>
-          ))}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium">Endereço (slug)</label>
-            <input className={inputCls} value={edit.slug ?? ""} placeholder={slugify(edit.title ?? "")} onChange={(e) => setEdit({ ...edit, slug: slugify(e.target.value) })} />
-            <p className="mt-1 text-xs text-muted-foreground">Deixe vazio para gerar a partir do título.</p>
-          </div>
-        </div>
-      </AdminShell>
-    );
-  }
+  const toLocal = (iso: unknown) => {
+    if (!iso) return "";
+    const d = new Date(String(iso));
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
 
   return (
-    <AdminShell title={title} actions={<button className={btnPrimary} onClick={() => setEdit({ ...defaults })}><Plus className="size-4" />Novo</button>}>
-      {!rows ? <Loader2 className="size-6 animate-spin text-muted-foreground" /> : rows.length === 0 ? <p className="text-muted-foreground">Nada por aqui ainda.</p> : (
-        <div className="glass overflow-x-auto rounded-2xl">
+    <AdminShell
+      title={title}
+      actions={
+        !edit ? (
+          <button className={btnPrimary} onClick={() => setEdit({ ...defaults })}>
+            <Plus className="size-4" /> Novo {singular}
+          </button>
+        ) : (
+          <div className="flex gap-2">
+            <button className={btnGhost} onClick={() => setEdit(null)} disabled={saving}>
+              Cancelar
+            </button>
+            <button className={btnPrimary} onClick={save} disabled={saving}>
+              {saving && <Loader2 className="size-4 animate-spin" />} Salvar
+            </button>
+          </div>
+        )
+      }
+    >
+      {edit ? (
+        <div className="mx-auto grid max-w-3xl gap-4">
+          {fields.map((f) => (
+            <div key={f.key}>
+              <label className="mb-1.5 block text-sm font-medium">
+                {f.label}
+                {f.required ? " *" : ""}
+              </label>
+              {f.type === "rich" ? (
+                <RichEditor
+                  value={String(edit[f.key] ?? "")}
+                  onChange={(v) => setEdit({ ...edit, [f.key]: v })}
+                />
+              ) : f.type === "image" ? (
+                <ImageUpload
+                  value={(edit[f.key] as string) ?? null}
+                  onChange={(v) => setEdit({ ...edit, [f.key]: v })}
+                />
+              ) : f.type === "bool" ? (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(edit[f.key])}
+                    onChange={(e) => setEdit({ ...edit, [f.key]: e.target.checked })}
+                  />
+                  {f.hint || "Ativo"}
+                </label>
+              ) : f.type === "datetime" ? (
+                <input
+                  type="datetime-local"
+                  className={inputCls}
+                  value={toLocal(edit[f.key])}
+                  onChange={(e) => setEdit({ ...edit, [f.key]: e.target.value })}
+                />
+              ) : f.type === "date" ? (
+                <input
+                  type="date"
+                  className={inputCls}
+                  value={String(edit[f.key] ?? "").slice(0, 10)}
+                  onChange={(e) => setEdit({ ...edit, [f.key]: e.target.value })}
+                />
+              ) : (
+                <input
+                  className={inputCls}
+                  type={f.type === "number" ? "number" : f.type === "url" ? "url" : "text"}
+                  value={String(edit[f.key] ?? "")}
+                  placeholder={f.key === "slug" ? slugify(String(edit.title ?? "")) : undefined}
+                  onChange={(e) =>
+                    setEdit({
+                      ...edit,
+                      [f.key]:
+                        f.key === "slug"
+                          ? slugify(e.target.value)
+                          : f.type === "number"
+                            ? Number(e.target.value)
+                            : e.target.value,
+                    })
+                  }
+                />
+              )}
+              {f.hint && f.type !== "bool" && (
+                <p className="mt-1 text-xs text-muted-foreground">{f.hint}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : rows === null ? (
+        <p className="text-muted-foreground">Carregando…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-muted-foreground">Nada por aqui ainda.</p>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-border">
           <table className="w-full text-sm">
-            <thead><tr className="border-b border-border text-left text-muted-foreground">{listCols.map((c) => <th key={c.key} className="px-4 py-3 font-medium">{c.label}</th>)}<th /></tr></thead>
-            <tbody>{rows.map((r) => (
-              <tr key={r.id} className="border-b border-border/60 last:border-0">
-                {listCols.map((c) => <td key={c.key} className="px-4 py-3">{c.fmt ? c.fmt(r[c.key]) : String(r[c.key] ?? "—")}</td>)}
-                <td className="px-4 py-3 text-right whitespace-nowrap">
-                  <button aria-label="Editar" className="p-2 text-muted-foreground hover:text-foreground" onClick={() => setEdit(r)}><Pencil className="size-4" /></button>
-                  <button aria-label="Excluir" className="p-2 text-muted-foreground hover:text-destructive" onClick={() => remove(r)}><Trash2 className="size-4" /></button>
-                </td>
+            <thead className="bg-secondary/50 text-left">
+              <tr>
+                {listCols.map((c) => (
+                  <th key={c.key} className="px-4 py-3 font-medium">
+                    {c.label}
+                  </th>
+                ))}
+                <th className="px-4 py-3 font-medium">Ações</th>
               </tr>
-            ))}</tbody>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={String(r.id)} className="border-t border-border">
+                  {listCols.map((c) => (
+                    <td key={c.key} className="px-4 py-3">
+                      {c.fmt ? c.fmt(r[c.key]) : String(r[c.key] ?? "—")}
+                    </td>
+                  ))}
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2">
+                      <button
+                        className={btnGhost}
+                        onClick={() => setEdit({ ...r })}
+                        aria-label="Editar"
+                      >
+                        <Pencil className="size-4" />
+                      </button>
+                      <button
+                        className={btnGhost}
+                        onClick={() => remove(r)}
+                        aria-label="Excluir"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>
       )}
@@ -99,6 +247,27 @@ export function ContentManager({ table, title, singular, fields, listCols, order
   );
 }
 
-export const fmtDateTime = (v?: string) => v ? new Date(v).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—";
-export const fmtDay = (v?: string) => v ? new Date(v + "T00:00:00").toLocaleDateString("pt-BR") : "—";
-export const fmtBool = (v: boolean) => v ? "Sim" : "Não";
+export function fmtDateTime(v: unknown) {
+  if (!v) return "—";
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(String(v)));
+}
+
+export function fmtDay(v: unknown) {
+  if (!v) return "—";
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(String(v)));
+}
+
+
+export function fmtBool(v: unknown) {
+  return v === true || v === 1 || v === "1" ? "Sim" : "Não";
+}

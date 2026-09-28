@@ -1,5 +1,7 @@
 import "./lib/error-capture";
 
+import { readFile } from "node:fs/promises";
+import { join, normalize } from "node:path";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 
@@ -18,8 +20,6 @@ async function getServerEntry(): Promise<ServerEntry> {
   return serverEntryPromise;
 }
 
-// h3 swallows in-handler throws into a normal 500 Response with body
-// {"unhandled":true,"message":"HTTPError"} — try/catch alone never fires for those.
 async function normalizeCatastrophicSsrResponse(response: Response): Promise<Response> {
   if (response.status < 500) return response;
   const contentType = response.headers.get("content-type") ?? "";
@@ -44,9 +44,49 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
+const MIME: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+};
+
+/** Serve arquivos de UPLOAD_DIR em /uploads/* */
+async function tryServeUpload(request: Request): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/uploads/")) return null;
+  const rel = decodeURIComponent(url.pathname.slice("/uploads/".length));
+  if (!rel || rel.includes("..")) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  const root = process.env.UPLOAD_DIR || "./uploads";
+  const filePath = normalize(join(root, rel));
+  const rootNorm = normalize(root);
+  if (!filePath.startsWith(rootNorm)) {
+    return new Response("Forbidden", { status: 403 });
+  }
+  try {
+    const data = await readFile(filePath);
+    const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
+    return new Response(data, {
+      status: 200,
+      headers: {
+        "content-type": MIME[ext] || "application/octet-stream",
+        "cache-control": "public, max-age=86400",
+      },
+    });
+  } catch {
+    return new Response("Not found", { status: 404 });
+  }
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const upload = await tryServeUpload(request);
+      if (upload) return upload;
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

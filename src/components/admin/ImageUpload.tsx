@@ -1,38 +1,91 @@
 import { useState } from "react";
-import { ImagePlus, Loader2, X } from "lucide-react";
+import { Loader2, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
-import { uploadImage, useMediaUrl } from "@/lib/admin";
+import { uploadImageFn } from "@/lib/admin.functions";
+import { useMediaUrl } from "@/lib/admin";
+import { btnGhost } from "./AdminShell";
 
-// Upload só por arquivo (arrastar e soltar ou selecionar). Sem campo de URL.
-export function ImageUpload({ value, onChange }: { value: string | null; onChange: (path: string | null) => void }) {
-  const url = useMediaUrl(value);
+const ALLOWED = {
+  "image/jpeg": true,
+  "image/png": true,
+  "image/webp": true,
+} as const;
+
+export function ImageUpload({
+  value,
+  onChange,
+}: {
+  value?: string | null;
+  onChange: (path: string | null) => void;
+}) {
   const [busy, setBusy] = useState(false);
-  const [over, setOver] = useState(false);
-  const handle = async (f?: File) => {
-    if (!f) return;
+  const url = useMediaUrl(value);
+
+  const onFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("A imagem precisa ter até 5 MB.");
+      return;
+    }
+    if (!(file.type in ALLOWED)) {
+      toast.error("Use imagens JPG, PNG ou WEBP.");
+      return;
+    }
     setBusy(true);
-    try { onChange(await uploadImage(f)); } catch (e) { toast.error((e as Error).message); } finally { setBusy(false); }
+    try {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+      const base64 = btoa(binary);
+      const result = await uploadImageFn({
+        data: {
+          filename: file.name,
+          mime: file.type as "image/jpeg" | "image/png" | "image/webp",
+          base64,
+        },
+      });
+      if (!result.ok) {
+        toast.error(result.error || "Falha no envio da imagem.");
+        return;
+      }
+      onChange(result.path);
+      toast.success("Imagem enviada.");
+    } catch (e) {
+      console.error(e);
+      toast.error("Falha no envio da imagem.");
+    } finally {
+      setBusy(false);
+    }
   };
+
   return (
-    <label
-      onDragOver={(e) => { e.preventDefault(); setOver(true); }}
-      onDragLeave={() => setOver(false)}
-      onDrop={(e) => { e.preventDefault(); setOver(false); handle(e.dataTransfer.files?.[0]); }}
-      className={`relative flex aspect-[16/9] w-full cursor-pointer items-center justify-center overflow-hidden rounded-xl border-2 border-dashed transition-colors ${over ? "border-accent bg-accent/10" : "border-border bg-card hover:bg-secondary/50"}`}
-    >
-      {url ? <img src={url} alt="" className="absolute inset-0 size-full object-cover" /> : (
-        <div className="text-center text-sm text-muted-foreground">
-          {busy ? <Loader2 className="mx-auto size-6 animate-spin" /> : <ImagePlus className="mx-auto size-6" />}
-          <p className="mt-2">Arraste uma imagem ou clique para escolher</p>
-          <p className="text-xs">JPG, PNG ou WEBP · até 5 MB</p>
-        </div>
+    <div className="space-y-3">
+      {url && (
+        <img
+          src={url}
+          alt=""
+          className="max-h-48 rounded-xl border border-border object-cover"
+        />
       )}
-      {value && (
-        <button type="button" aria-label="Remover imagem" onClick={(e) => { e.preventDefault(); onChange(null); }} className="absolute right-2 top-2 grid size-8 place-items-center rounded-full bg-background/90 text-foreground shadow">
-          <X className="size-4" />
-        </button>
-      )}
-      <input type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={(e) => { handle(e.target.files?.[0]); e.target.value = ""; }} />
-    </label>
+      <div className="flex flex-wrap gap-2">
+        <label className={`${btnGhost} cursor-pointer`}>
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
+          {busy ? "Enviando…" : "Escolher arquivo"}
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            disabled={busy}
+            onChange={(e) => onFile(e.target.files?.[0])}
+          />
+        </label>
+        {value && (
+          <button type="button" className={btnGhost} onClick={() => onChange(null)} disabled={busy}>
+            Remover
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

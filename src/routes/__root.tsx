@@ -14,6 +14,7 @@ import appCss from "../styles.css?url";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { BackToTop } from "@/components/site/BackToTop";
+import { AdminEditBanner } from "@/components/site/InlineEdit";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -110,6 +111,7 @@ function RootComponent() {
           </main>
           <SiteFooter />
           <BackToTop />
+          <AdminEditBanner />
         </>
       )}
       <Toaster richColors position="top-center" />
