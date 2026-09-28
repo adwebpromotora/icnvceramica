@@ -50,6 +50,7 @@ function FormsPage() {
   const [saving, setSaving] = useState(false);
   const [subs, setSubs] = useState<Record<string, unknown>[] | null>(null);
   const [subsTitle, setSubsTitle] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const load = async () => {
     try {
@@ -283,6 +284,14 @@ function FormsPage() {
     );
   }
 
+  const filteredForms = (forms ?? []).filter((f) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const hay = `${f.title} ${f.slug}`.toLowerCase();
+    return tokens.every((tok) => hay.includes(tok));
+  });
+
   return (
     <AdminShell
       title="Formulários"
@@ -302,8 +311,15 @@ function FormsPage() {
       ) : forms.length === 0 ? (
         <p className="text-muted-foreground">Nenhum formulário ainda.</p>
       ) : (
+        <>
+        <input
+          className={inputCls + " mb-4 max-w-md"}
+          placeholder="Buscar formulário…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
         <div className="grid gap-4 md:grid-cols-2">
-          {forms.map((f) => (
+          {filteredForms.map((f) => (
             <div key={f.id} className="glass rounded-2xl p-5">
               <h3 className="font-serif text-xl">{f.title}</h3>
               <p className="text-sm text-muted-foreground">
@@ -330,6 +346,7 @@ function FormsPage() {
             </div>
           ))}
         </div>
+        </>
       )}
     </AdminShell>
   );

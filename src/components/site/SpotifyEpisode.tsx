@@ -1,20 +1,30 @@
 import { useEffect, useState } from "react";
 import { spotify } from "@/lib/site-data";
-import { supabase } from "@/integrations/supabase/client";
+import { getPublicSettingsFn } from "@/lib/public.functions";
 
-function toEmbed(url?: string | null) {
-  const m = url?.match(/episode\/([A-Za-z0-9]+)/);
-  return m ? `https://open.spotify.com/embed/episode/${m[1]}?utm_source=generator&theme=0` : null;
+function toEmbed(raw?: string | null): string | null {
+  if (!raw) return null;
+  if (raw.includes("<iframe")) {
+    const m = raw.match(/src=["']([^"']+)["']/i);
+    return m?.[1] ?? null;
+  }
+  const ep = raw.match(/episode\/([A-Za-z0-9]+)/);
+  if (ep) return `https://open.spotify.com/embed/episode/${ep[1]}?utm_source=generator&theme=0`;
+  const tr = raw.match(/track\/([A-Za-z0-9]+)/);
+  if (tr) return `https://open.spotify.com/embed/track/${tr[1]}?utm_source=generator&theme=0`;
+  if (raw.startsWith("http")) return raw;
+  return null;
 }
 
-// Player oficial do Spotify com o episódio atual, definido em Configurações no painel.
 export function SpotifyEpisode({ compact = false }: { compact?: boolean }) {
   const [src, setSrc] = useState(spotify.embedUrl);
   useEffect(() => {
-    supabase.from("site_settings").select("spotify_episode_url").eq("id", 1).single().then(({ data }) => {
-      const e = toEmbed(data?.spotify_episode_url);
-      if (e) setSrc(e);
-    });
+    getPublicSettingsFn()
+      .then((s) => {
+        const e = toEmbed(s.spotify_embed_url);
+        if (e) setSrc(e);
+      })
+      .catch(() => {});
   }, []);
   return (
     <iframe

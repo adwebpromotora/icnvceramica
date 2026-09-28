@@ -1,43 +1,61 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Container, EventCard, PageHero, Pagination } from "@/components/site/Blocks";
-import { events } from "@/lib/site-data";
-
-const PER = 6;
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { Container, PageHero } from "@/components/site/Blocks";
+import { listPublicEventsFn } from "@/lib/public.functions";
+import { fmtDate, fmtTime } from "@/lib/site-data";
 
 export const Route = createFileRoute("/agenda/")({
   head: () => ({
     meta: [
       { title: "Agenda — ICNV Cerâmica" },
-      { name: "description", content: "Programação e próximos eventos da Igreja Cristã Nova Vida em Cerâmica." },
-      { property: "og:title", content: "Agenda — ICNV Cerâmica" },
-      { property: "og:description", content: "Confira os próximos eventos e encontros." },
+      { name: "description", content: "Próximos eventos e cultos da Igreja Cristã Nova Vida em Cerâmica." },
     ],
   }),
-  component: Agenda,
+  component: AgendaPage,
 });
 
-function Agenda() {
-  const [page, setPage] = useState(1);
-  const [cat, setCat] = useState("Todos");
-  const cats = ["Todos", ...Array.from(new Set(events.map((e) => e.category)))];
-  const list = cat === "Todos" ? events : events.filter((e) => e.category === cat);
-  const total = Math.ceil(list.length / PER);
+type Ev = {
+  id: string;
+  title: string;
+  slug: string;
+  summary: string | null;
+  starts_at: string;
+  location: string | null;
+};
+
+function AgendaPage() {
+  const [items, setItems] = useState<Ev[] | null>(null);
+  useEffect(() => {
+    listPublicEventsFn()
+      .then((rows) => setItems(rows as Ev[]))
+      .catch(() => setItems([]));
+  }, []);
+
   return (
     <>
-      <PageHero eyebrow="Agenda" title="Próximos encontros" text="Lorem ipsum dolor sit amet, participe da vida da igreja durante a semana." />
-      <Container className="py-6">
-        <div className="mb-8 flex flex-wrap gap-2">
-          {cats.map((c) => (
-            <button key={c} onClick={() => { setCat(c); setPage(1); }} className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${c === cat ? "bg-primary text-primary-foreground" : "glass hover:bg-secondary"}`}>
-              {c}
-            </button>
+      <PageHero eyebrow="Agenda" title="Próximos encontros" text="Cultos, encontros e ações no bairro." />
+      <Container className="pb-20">
+        {items === null && <p className="text-muted-foreground">Carregando…</p>}
+        {items && items.length === 0 && (
+          <p className="text-muted-foreground">Nenhum evento publicado no momento.</p>
+        )}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {items?.map((e) => (
+            <Link
+              key={e.id}
+              to="/agenda/$slug"
+              params={{ slug: e.slug }}
+              className="glass group rounded-2xl p-5 transition hover:-translate-y-0.5"
+            >
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                {fmtDate(e.starts_at)} · {fmtTime(e.starts_at)}
+              </p>
+              <h2 className="mt-2 font-serif text-xl group-hover:text-primary">{e.title}</h2>
+              {e.location && <p className="mt-1 text-sm text-muted-foreground">{e.location}</p>}
+              {e.summary && <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{e.summary}</p>}
+            </Link>
           ))}
         </div>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-          {list.slice((page - 1) * PER, page * PER).map((e) => <EventCard key={e.slug} e={e} />)}
-        </div>
-        <Pagination page={page} total={total} onChange={setPage} />
       </Container>
     </>
   );

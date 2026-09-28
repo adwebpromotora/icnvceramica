@@ -150,21 +150,43 @@ export const saveSettings = createServerFn({ method: "POST" })
       "smtp_secure",
     ] as const;
 
+    const normalize = (k: string, v: unknown) => {
+      if (typeof v === "boolean") return v ? 1 : 0;
+      if (v === "" || v === undefined) {
+        if (k === "founded_at" || k === "logo_path" || k === "gtm_id" || k.startsWith("smtp_")) return null;
+        return "";
+      }
+      if (k === "founded_at") {
+        const s = String(v).slice(0, 10);
+        return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+      }
+      if (k === "smtp_port") {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+      }
+      if (k === "show_back_to_top" || k === "smtp_secure") {
+        return v === true || v === 1 || v === "1" ? 1 : 0;
+      }
+      return v;
+    };
+
     const fields: string[] = [];
     const params: Record<string, unknown> = {};
     for (const k of allowed) {
-      if (data[k] === undefined) continue;
-      fields.push(`${k} = :${k}`);
-      params[k] = typeof data[k] === "boolean" ? (data[k] ? 1 : 0) : data[k];
+      if (!(k in data)) continue;
+      fields.push(`\`${k}\` = :${k}`);
+      params[k] = normalize(k, data[k]);
     }
     if (user.role === "admin") {
       for (const k of adminOnly) {
-        if (data[k] === undefined) continue;
-        fields.push(`${k} = :${k}`);
-        params[k] = typeof data[k] === "boolean" ? (data[k] ? 1 : 0) : data[k];
+        if (!(k in data)) continue;
+        fields.push(`\`${k}\` = :${k}`);
+        params[k] = normalize(k, data[k]);
       }
     }
     if (!fields.length) return { ok: true as const };
+    // Garante linha de settings
+    await execute("INSERT IGNORE INTO site_settings (id) VALUES (1)");
     await execute(`UPDATE site_settings SET ${fields.join(", ")} WHERE id = 1`, params);
     await audit(user.id, "update_settings", "site_settings", "1");
     return { ok: true as const };

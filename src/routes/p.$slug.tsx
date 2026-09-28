@@ -1,25 +1,49 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Container, PageHero } from "@/components/site/Blocks";
+import { getPublicPageFn } from "@/lib/public.functions";
 
 export const Route = createFileRoute("/p/$slug")({
-  head: () => ({ meta: [{ title: "ICNV Cerâmica" }, { name: "description", content: "Página da Igreja Cristã Nova Vida em Cerâmica." }, { property: "og:title", content: "ICNV Cerâmica" }, { property: "og:description", content: "Página da Igreja Cristã Nova Vida em Cerâmica." }] }),
+  head: ({ params }) => ({
+    meta: [{ title: `${params.slug} — ICNV Cerâmica` }, { name: "robots", content: "index" }],
+  }),
   component: DynamicPage,
 });
 
 function DynamicPage() {
   const { slug } = Route.useParams();
   const [page, setPage] = useState<{ title: string; content: string | null } | null | undefined>(undefined);
+
   useEffect(() => {
-    supabase.from("pages").select("title,content").eq("slug", slug).maybeSingle().then(({ data }) => setPage(data));
+    getPublicPageFn({ data: { slug } })
+      .then((p) => setPage(p ? { title: p.title, content: p.content } : null))
+      .catch(() => setPage(null));
   }, [slug]);
-  if (page === undefined) return <div className="min-h-[60vh]" />;
-  if (!page) return <Container><p className="py-40 text-center text-muted-foreground">Página não encontrada.</p></Container>;
+
+  if (page === undefined) {
+    return (
+      <Container className="py-32">
+        <p className="text-muted-foreground">Carregando…</p>
+      </Container>
+    );
+  }
+  if (!page) {
+    return (
+      <Container className="py-32 text-center">
+        <h1 className="font-serif text-3xl">Página não encontrada</h1>
+      </Container>
+    );
+  }
+
   return (
     <>
-      <PageHero eyebrow="ICNV Cerâmica" title={page.title} />
-      <Container><div className="prose-church mx-auto max-w-3xl pb-24" dangerouslySetInnerHTML={{ __html: page.content ?? "" }} /></Container>
+      <PageHero eyebrow="Página" title={page.title} />
+      <Container className="pb-20">
+        <div
+          className="prose-church max-w-3xl"
+          dangerouslySetInnerHTML={{ __html: page.content || "" }}
+        />
+      </Container>
     </>
   );
 }

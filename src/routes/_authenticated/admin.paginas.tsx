@@ -22,6 +22,7 @@ export const Route = createFileRoute("/_authenticated/admin/paginas")({
         { key: "title", label: "Título", type: "text", required: true },
         { key: "slug", label: "Endereço (slug)", type: "text" },
         { key: "menu_order", label: "Ordem no menu", type: "number" },
+        { key: "parent_id", label: "ID da página pai (submenu, opcional)", type: "text", hint: "Deixe vazio para item no menu principal. Cole o ID de outra página para submenu." },
         { key: "content", label: "Conteúdo", type: "rich" },
         { key: "show_in_menu", label: "Exibir no menu", type: "bool" },
         { key: "visible", label: "Publicada", type: "bool" },

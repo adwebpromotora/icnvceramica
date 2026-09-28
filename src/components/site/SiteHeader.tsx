@@ -1,36 +1,63 @@
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { ChevronDown, Menu, X } from "lucide-react";
-import { nav } from "@/lib/site-data";
+import { Menu, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Logo } from "./Logo";
+import { nav as staticNav, type NavItem } from "@/lib/site-data";
+import { listPublicMenuPagesFn } from "@/lib/public.functions";
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
+  const [nav, setNav] = useState<NavItem[]>(staticNav);
+
+  useEffect(() => {
+    listPublicMenuPagesFn()
+      .then((pages) => {
+        if (!pages.length) return;
+        const byParent = new Map<string | null, typeof pages>();
+        for (const p of pages) {
+          const key = p.parent_id ?? null;
+          if (!byParent.has(key)) byParent.set(key, []);
+          byParent.get(key)!.push(p);
+        }
+        const roots = byParent.get(null) ?? pages.filter((p) => !p.parent_id);
+        const dynamic: NavItem[] = roots.map((p) => {
+          const children = (byParent.get(p.id) ?? []).map((c) => ({
+            label: c.title,
+            to: `/p/${c.slug}`,
+          }));
+          return {
+            label: p.title,
+            to: `/p/${p.slug}`,
+            children: children.length ? children : undefined,
+          };
+        });
+        // merge: static base + dynamic pages (avoid duplicating paths)
+        const staticPaths = new Set(staticNav.flatMap((n) => [n.to, ...(n.children?.map((c) => c.to) ?? [])]));
+        const extra = dynamic.filter((d) => !staticPaths.has(d.to));
+        setNav([...staticNav, ...extra]);
+      })
+      .catch(() => {});
+  }, []);
 
   return (
-    <header className="fixed inset-x-0 top-4 z-50">
-      <div className="mx-auto max-w-7xl px-4 sm:px-8">
-        <div className="glass-strong flex items-center justify-between rounded-[22px] px-4 py-3 shadow-sm">
-          <Logo />
-          <nav className="hidden items-center gap-5 text-sm font-medium text-muted-foreground lg:flex xl:gap-7">
+    <header className="fixed inset-x-0 top-0 z-40">
+      <div className="mx-auto max-w-7xl px-5 pt-4 sm:px-8">
+        <div className="glass-strong flex items-center gap-4 rounded-[22px] px-4 py-3 shadow-sm sm:px-5">
+          <Logo small />
+          <nav className="ml-auto hidden items-center gap-6 text-sm text-muted-foreground lg:flex">
             {nav.map((item) =>
-              item.children ? (
+              item.children?.length ? (
                 <div key={item.label} className="group relative">
-                  <Link
-                    to={item.to}
-                    className="flex items-center gap-1 transition-colors hover:text-foreground"
-                    activeProps={{ className: "text-foreground" }}
-                  >
+                  <Link to={item.to} className="transition-colors hover:text-foreground">
                     {item.label}
-                    <ChevronDown className="size-3.5 transition-transform group-hover:rotate-180" />
                   </Link>
-                  <div className="invisible absolute left-1/2 top-full -translate-x-1/2 pt-3 opacity-0 transition-all group-hover:visible group-hover:opacity-100">
-                    <div className="glass-strong min-w-48 rounded-2xl p-2 shadow-lg">
+                  <div className="invisible absolute left-0 top-full z-50 min-w-[180px] pt-2 opacity-0 transition group-hover:visible group-hover:opacity-100">
+                    <div className="glass-strong rounded-xl p-2 shadow-lg">
                       {item.children.map((c) => (
                         <Link
-                          key={c.to + c.label}
+                          key={c.to}
                           to={c.to}
-                          className="block rounded-xl px-3 py-2 transition-colors hover:bg-surface hover:text-foreground"
+                          className="block rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground"
                         >
                           {c.label}
                         </Link>

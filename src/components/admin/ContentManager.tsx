@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { slugify } from "@/lib/admin";
@@ -16,6 +16,17 @@ export type Field = {
 };
 
 type Row = Record<string, unknown>;
+
+function matchesSearch(r: Row, searchQuery: string) {
+  const q = searchQuery.trim().toLowerCase();
+  if (!q) return true;
+  const tokens = q.split(/\s+/).filter(Boolean);
+  const hay = Object.values(r)
+    .filter((v) => v != null && typeof v !== "object")
+    .map((v) => String(v).toLowerCase())
+    .join(" ");
+  return tokens.every((tok) => hay.includes(tok));
+}
 
 export function ContentManager({
   table,
@@ -37,6 +48,7 @@ export function ContentManager({
   const [rows, setRows] = useState<Row[] | null>(null);
   const [edit, setEdit] = useState<Record<string, unknown> | null>(null);
   const [saving, setSaving] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const load = async () => {
     try {
@@ -52,6 +64,11 @@ export function ContentManager({
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table]);
+
+  const filtered = useMemo(
+    () => (rows ? rows.filter((r) => matchesSearch(r, searchQuery)) : null),
+    [rows, searchQuery],
+  );
 
   const save = async () => {
     if (!edit) return;
@@ -196,52 +213,56 @@ export function ContentManager({
         </div>
       ) : rows === null ? (
         <p className="text-muted-foreground">Carregando…</p>
-      ) : rows.length === 0 ? (
-        <p className="text-muted-foreground">Nada por aqui ainda.</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border">
-          <table className="w-full text-sm">
-            <thead className="bg-secondary/50 text-left">
-              <tr>
-                {listCols.map((c) => (
-                  <th key={c.key} className="px-4 py-3 font-medium">
-                    {c.label}
-                  </th>
-                ))}
-                <th className="px-4 py-3 font-medium">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={String(r.id)} className="border-t border-border">
-                  {listCols.map((c) => (
-                    <td key={c.key} className="px-4 py-3">
-                      {c.fmt ? c.fmt(r[c.key]) : String(r[c.key] ?? "—")}
-                    </td>
+        <>
+          <input
+            className={`${inputCls} mb-4 max-w-md`}
+            placeholder="Buscar (qualquer ordem de palavras)…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {rows.length === 0 ? (
+            <p className="text-muted-foreground">Nada por aqui ainda.</p>
+          ) : filtered && filtered.length === 0 ? (
+            <p className="text-muted-foreground">Nenhum resultado para a busca.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-border">
+              <table className="w-full text-sm">
+                <thead className="bg-secondary/50 text-left">
+                  <tr>
+                    {listCols.map((c) => (
+                      <th key={c.key} className="px-4 py-3 font-medium">
+                        {c.label}
+                      </th>
+                    ))}
+                    <th className="px-4 py-3 font-medium">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(filtered ?? rows).map((r) => (
+                    <tr key={String(r.id)} className="border-t border-border">
+                      {listCols.map((c) => (
+                        <td key={c.key} className="px-4 py-3">
+                          {c.fmt ? c.fmt(r[c.key]) : String(r[c.key] ?? "—")}
+                        </td>
+                      ))}
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2">
+                          <button className={btnGhost} onClick={() => setEdit({ ...r })} aria-label="Editar">
+                            <Pencil className="size-4" />
+                          </button>
+                          <button className={btnGhost} onClick={() => remove(r)} aria-label="Excluir">
+                            <Trash2 className="size-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
                   ))}
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <button
-                        className={btnGhost}
-                        onClick={() => setEdit({ ...r })}
-                        aria-label="Editar"
-                      >
-                        <Pencil className="size-4" />
-                      </button>
-                      <button
-                        className={btnGhost}
-                        onClick={() => remove(r)}
-                        aria-label="Excluir"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </AdminShell>
   );
@@ -266,7 +287,6 @@ export function fmtDay(v: unknown) {
     year: "numeric",
   }).format(new Date(String(v)));
 }
-
 
 export function fmtBool(v: unknown) {
   return v === true || v === 1 || v === "1" ? "Sim" : "Não";

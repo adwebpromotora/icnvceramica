@@ -116,7 +116,7 @@ export async function saveContent(
       if (isUpdate) {
         await execute(
           `UPDATE pages SET title=:title, slug=:slug, content=:content, visible=:visible,
-           menu_order=:menu_order, show_in_menu=:show_in_menu WHERE id=:id`,
+           menu_order=:menu_order, show_in_menu=:show_in_menu, parent_id=:parent_id WHERE id=:id`,
           {
             id,
             title,
@@ -125,12 +125,13 @@ export async function saveContent(
             visible: payload.visible !== false && payload.visible !== 0 ? 1 : 0,
             menu_order: Number(payload.menu_order ?? 0),
             show_in_menu: payload.show_in_menu !== false && payload.show_in_menu !== 0 ? 1 : 0,
+            parent_id: (payload.parent_id as string) || null,
           },
         );
       } else {
         await execute(
-          `INSERT INTO pages (id, title, slug, content, visible, menu_order, show_in_menu, created_by)
-           VALUES (:id, :title, :slug, :content, :visible, :menu_order, :show_in_menu, :uid)`,
+          `INSERT INTO pages (id, title, slug, content, visible, menu_order, show_in_menu, parent_id, created_by)
+           VALUES (:id, :title, :slug, :content, :visible, :menu_order, :show_in_menu, :parent_id, :uid)`,
           {
             id,
             title,
@@ -139,6 +140,7 @@ export async function saveContent(
             visible: payload.visible !== false && payload.visible !== 0 ? 1 : 0,
             menu_order: Number(payload.menu_order ?? 0),
             show_in_menu: payload.show_in_menu !== false && payload.show_in_menu !== 0 ? 1 : 0,
+            parent_id: (payload.parent_id as string) || null,
             uid: userId,
           },
         );

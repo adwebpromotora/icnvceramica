@@ -15,6 +15,7 @@ import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { BackToTop } from "@/components/site/BackToTop";
 import { AdminEditBanner } from "@/components/site/InlineEdit";
+import { UniversalEdit } from "@/components/site/UniversalEdit";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -112,6 +113,7 @@ function RootComponent() {
           <SiteFooter />
           <BackToTop />
           <AdminEditBanner />
+          <UniversalEdit />
         </>
       )}
       <Toaster richColors position="top-center" />
