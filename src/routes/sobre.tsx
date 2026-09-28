@@ -4,7 +4,7 @@ import { Container, PageHero, SectionHead } from "@/components/site/Blocks";
 import { church, churchAge, images, leaders } from "@/lib/site-data";
 import { getPublicSettingsFn } from "@/lib/public.functions";
 import { EditableImage } from "@/components/site/EditableImage";
-import { loadTextOverridesFn } from "@/components/site/UniversalEdit";
+import { loadTextOverridesFn } from "@/lib/overrides.functions";
 import { mediaUrl } from "@/lib/media";
 
 export const Route = createFileRoute("/sobre")({

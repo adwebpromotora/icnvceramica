@@ -8,7 +8,7 @@ import {
   getPublicSettingsFn,
   listPublicEventsFn,
 } from "@/lib/public.functions";
-import { loadTextOverridesFn } from "@/components/site/UniversalEdit";
+import { loadTextOverridesFn } from "@/lib/overrides.functions";
 import { EditableImage } from "@/components/site/EditableImage";
 import { mediaUrl } from "@/lib/media";
 
@@ -49,6 +49,8 @@ function Home() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [events, setEvents] = useState<Ev[] | null>(null);
   const [heroSrc, setHeroSrc] = useState<string>(images.heroChurch);
+  const [communitySrc, setCommunitySrc] = useState<string>(images.community);
+
   useEffect(() => {
     getPublicSettingsFn()
       .then((s) =>
@@ -68,8 +70,13 @@ function Home() {
       .then((rows) => {
         const hero = rows.find((r) => r.content_key === "hero-image");
         if (hero?.value_text) {
-          const v = hero.value_text;
-          setHeroSrc(v.startsWith("http") || v.startsWith("/") ? v : `/uploads/${v}`);
+          const u = mediaUrl(hero.value_text);
+          if (u) setHeroSrc(u);
+        }
+        const community = rows.find((r) => r.content_key === "home-onde-estamos-image");
+        if (community?.value_text) {
+          const u = mediaUrl(community.value_text);
+          if (u) setCommunitySrc(u);
         }
       })
       .catch(() => {});

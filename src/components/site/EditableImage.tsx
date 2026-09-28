@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSession } from "@/lib/admin";
 import { uploadImageFn } from "@/lib/admin.functions";
-import { saveTextOverrideFn } from "@/components/site/UniversalEdit";
+import { saveTextOverrideFn } from "@/lib/overrides.functions";
 import { mediaUrl } from "@/lib/media";
 
 type Props = {
