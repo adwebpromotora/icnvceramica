@@ -1,0 +1,42 @@
+# Dependências e builds locais
+node_modules
+.output
+.vinxi
+.nitro
+.tanstack
+dist
+dist-ssr
+
+# Git e IDE
+.git
+.gitignore
+.vscode
+.idea
+*.swp
+.DS_Store
+
+# Env e segredos (nunca copiar para a imagem)
+.env
+.env.*
+!.env.example
+
+# Uploads locais (volume em runtime)
+uploads
+public/uploads
+
+# Docs e artefatos que não entram no runtime
+*.md
+!README.md
+AGENTS.md
+roadmap.md
+DEPLOY.md
+bun.lock
+.prettierignore
+.prettierrc
+eslint.config.js
+
+# Docker (evita contexto recursivo desnecessário)
+Dockerfile
+docker-compose.yml
+docker-compose*.yml
+.dockerignore

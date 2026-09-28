@@ -1,74 +1,91 @@
-# Deploy — ICNV Cerâmica (VPS / EasyPanel)
+# Deploy — ICNV Cerâmica (Docker / EasyPanel / VPS)
 
-## 1. Banco MySQL
+## Opção A — EasyPanel com Dockerfile (recomendado)
 
-No EasyPanel (ou painel MySQL):
+### 1. MySQL
+1. Crie um serviço **MySQL 8** no EasyPanel.
+2. Database: `icnv` · usuário e senha fortes.
+3. Anote o **hostname interno** do serviço (ex.: `icnv-mysql`).
 
-1. Crie um serviço **MySQL 8**.
-2. Crie o database `icnv` e um usuário com senha forte.
-3. Anote: host (ex. nome interno do serviço), porta `3306`, user, password, database.
+Opcional: rode o `schema.sql` manualmente. O app também cria as tabelas na primeira conexão.
 
-Opcional: importe `schema.sql` manualmente. Caso contrário, o app cria as tabelas na primeira subida.
+### 2. App (Docker)
+1. App → **Docker** (ou “Dockerfile”).
+2. Build context: raiz do repositório · Dockerfile: `Dockerfile`.
+3. Porta interna: **3000**.
+4. Monte um volume em `/app/uploads` (persistente).
 
-## 2. App (Node)
+### 3. Variáveis de ambiente do app
 
-1. Repositório no GitHub → clone no EasyPanel como app **Node**.
-2. Build: `npm install && npm run build`
-3. Start: `npm start` (ou `node .output/server/index.mjs`)
-4. Porta: a que o EasyPanel injetar em `PORT` (geralmente 3000).
-
-### Variáveis de ambiente (obrigatórias)
-
-```
+```env
 APP_URL=https://seu-dominio.com.br
 NODE_ENV=production
 PORT=3000
+HOST=0.0.0.0
 SESSION_SECRET=<openssl rand -hex 32>
 JWT_SECRET=<openssl rand -hex 32>
 PASSWORD_HASH_ALGORITHM=argon2id
-DB_HOST=<host-mysql>
+DB_HOST=<hostname-interno-do-mysql>
 DB_PORT=3306
 DB_USER=icnv
 DB_PASSWORD=<senha>
 DB_NAME=icnv
 UPLOAD_DIR=/app/uploads
-```
-
-### Opcionais
-
-```
-RECAPTCHA_SITE_KEY=
-RECAPTCHA_SECRET_KEY=
-VAPID_PUBLIC_KEY=
-VAPID_PRIVATE_KEY=
-VAPID_SUBJECT=mailto:admin@seu-dominio.com.br
 SERVER_PRESET=node-server
 ```
 
-**Não** coloque SMTP nem GTM no `.env` — configure no painel após o login.
+Opcionais: `RECAPTCHA_*`, `VAPID_*` (ver `.env.example`).
 
-## 3. Volume de uploads
+**Não** coloque SMTP nem GTM no env — configure no painel após o login.
 
-Monte um volume persistente em `UPLOAD_DIR` (ex. `/app/uploads`) para não perder imagens em redeploy.
+### 4. Domínio e HTTPS
+Aponte o domínio no EasyPanel para a porta 3000 do app. Ative HTTPS (Let’s Encrypt).
 
-## 4. Primeiro acesso
+### 5. Primeiro acesso
+Abra `https://seu-dominio.com.br/admin` → formulário **Criar administrador** (só na primeira vez).
 
-1. Abra `https://seu-dominio.com.br/admin`
-2. Se não houver admin, o formulário de **Criar administrador** aparece.
-3. Após criar, esse é o único admin “público”; novos usuários só pelo painel.
+---
 
-## 5. Checklist pós-deploy
+## Opção B — docker-compose local / VPS
+
+1. Copie `.env.example` → `.env` e preencha pelo menos:
+   - `SESSION_SECRET`, `JWT_SECRET`
+   - `DB_PASSWORD`, `MYSQL_ROOT_PASSWORD`
+   - `APP_URL`
+
+2. Suba:
+
+```bash
+docker compose up -d --build
+```
+
+3. App: http://localhost:3000 · Admin: http://localhost:3000/admin
+
+Volumes:
+- `icnv_mysql_data` — dados do MySQL
+- `icnv_uploads` — imagens enviadas no CMS
+
+Parar:
+
+```bash
+docker compose down
+```
+
+(Dados nos volumes permanecem. Use `docker compose down -v` só se quiser apagar tudo.)
+
+---
+
+## Checklist pós-deploy
 
 - [ ] Site abre em `/`
-- [ ] `/admin` cria admin e faz login
-- [ ] Dashboard carrega totais
-- [ ] Configurações salvam nome/endereço/cores
-- [ ] Upload de imagem funciona
-- [ ] Páginas/eventos/sermões criados no painel aparecem no site (quando a leitura do banco estiver ligada na rota)
+- [ ] `/admin` cria o primeiro admin e faz login
+- [ ] Volume `/app/uploads` persiste após redeploy
+- [ ] MySQL saudável e app conecta (`DB_HOST` correto na rede interna)
+- [ ] HTTPS ativo em produção
 
-## 6. Segurança
+## Segurança
 
-- `SESSION_SECRET` e `JWT_SECRET` únicos e longos
-- HTTPS obrigatório em produção (cookie `Secure`)
-- Não exponha `VAPID_PRIVATE_KEY` no frontend
-- Backup regular do MySQL
+- Segredos longos e únicos (`SESSION_SECRET`, `JWT_SECRET`)
+- Não exponha a porta do MySQL para a internet no EasyPanel
+- Backup regular do volume MySQL
+- `VAPID_PRIVATE_KEY` nunca no frontend

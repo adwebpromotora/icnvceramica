@@ -18,6 +18,12 @@ Site público e painel administrativo (`/admin`) da Igreja Cristã Nova Vida —
 5. Acesse `/admin` — o primeiro cadastro cria o **único** administrador.
 6. Demais usuários são criados pelo admin em **Usuários**.
 
+## Docker
+
+- `Dockerfile` multi-stage (Node 22 + Nitro node-server)
+- `docker-compose.yml` — app + MySQL 8 + volumes (`icnv_uploads`, `icnv_mysql_data`)
+- Local: `docker compose up -d --build`
+
 ## Produção (EasyPanel)
 
 Veja **DEPLOY.md** para o passo a passo completo.
