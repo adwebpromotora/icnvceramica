@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { LayoutDashboard, CalendarDays, Mic, FileText, ClipboardList, Settings, Users, LogOut, ArrowLeft, Menu, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { logoutFn } from "@/lib/admin";
@@ -16,15 +16,16 @@ const items = [
 
 export function AdminShell({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }) {
   const { role, email, loading } = useSession();
-  const nav = useNavigate();
   const [open, setOpen] = useState(false);
   const logout = async () => {
     try {
       await logoutFn();
-    } catch {}
+    } catch {
+      /* ignore */
+    }
     document.cookie = "icnv_session=; Path=/; Max-Age=0; SameSite=Lax";
     window.location.href = "/admin/login";
-  }); };
+  };
 
   if (!loading && !role) {
     return (
