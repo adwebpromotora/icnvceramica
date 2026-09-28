@@ -1,24 +1,104 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
-import { Container, EventCard, SectionHead, ServiceTimes } from "@/components/site/Blocks";
+import { ArrowRight, CalendarDays } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { Container, SectionHead, ServiceTimes } from "@/components/site/Blocks";
 import { SpotifyEpisode } from "@/components/site/SpotifyEpisode";
-import { church, churchAge, events, images, ministries, spotify } from "@/lib/site-data";
-import { InlineEdit } from "@/components/site/InlineEdit";
+import { churchAge, images, ministries, fmtDate, fmtTime } from "@/lib/site-data";
+import {
+  getPublicSettingsFn,
+  listPublicEventsFn,
+} from "@/lib/public.functions";
+import { useSession } from "@/lib/admin";
+import { uploadImageFn } from "@/lib/admin.functions";
+import { saveTextOverrideFn, loadTextOverridesFn } from "@/components/site/UniversalEdit";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "ICNV Cerâmica — Onde uma nova vida espera por você" },
-      { name: "description", content: "Igreja Cristã Nova Vida em Cerâmica. Cultos, agenda, mensagens e uma comunidade acolhedora no bairro." },
-      { property: "og:title", content: "ICNV Cerâmica — Onde uma nova vida espera por você" },
-      { property: "og:description", content: "Cultos, agenda, mensagens e uma comunidade acolhedora no bairro Cerâmica." },
+      {
+        name: "description",
+        content:
+          "Igreja Cristã Nova Vida em Cerâmica. Cultos, agenda, mensagens e uma comunidade acolhedora no bairro.",
+      },
     ],
   }),
   component: Home,
 });
 
+type Ev = {
+  id: string;
+  title: string;
+  slug: string;
+  summary: string | null;
+  starts_at: string;
+  ends_at: string | null;
+  location: string | null;
+  cover_path: string | null;
+};
+
+type Settings = {
+  church_name: string;
+  address: string;
+  phone: string;
+  founded_at: string | null;
+  spotify_show_url: string;
+};
+
 function Home() {
-  const age = churchAge();
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [events, setEvents] = useState<Ev[] | null>(null);
+  const [heroSrc, setHeroSrc] = useState<string>(images.heroChurch);
+  const { role, loading: sessionLoading } = useSession();
+  const canEdit = !sessionLoading && (role === "admin" || role === "editor");
+
+  useEffect(() => {
+    getPublicSettingsFn()
+      .then((s) =>
+        setSettings({
+          church_name: s.church_name,
+          address: s.address,
+          phone: s.phone,
+          founded_at: s.founded_at,
+          spotify_show_url: s.spotify_show_url,
+        }),
+      )
+      .catch(() => {});
+    listPublicEventsFn()
+      .then((rows) => setEvents(rows as Ev[]))
+      .catch(() => setEvents([]));
+    loadTextOverridesFn({ data: { path: "/" } })
+      .then((rows) => {
+        const hero = rows.find((r) => r.content_key === "hero-image");
+        if (hero?.value_text) {
+          const v = hero.value_text;
+          setHeroSrc(v.startsWith("http") || v.startsWith("/") ? v : `/uploads/${v}`);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const age = churchAge(settings?.founded_at || undefined);
+
+  const nextEvent = useMemo(() => {
+    if (!events?.length) return null;
+    const now = Date.now();
+    const upcoming = events
+      .filter((e) => new Date(e.starts_at).getTime() >= now - 60 * 60 * 1000)
+      .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
+    return upcoming[0] ?? events[0] ?? null;
+  }, [events]);
+
+  const upcomingCards = useMemo(() => {
+    if (!events?.length) return [];
+    const now = Date.now();
+    return events
+      .filter((e) => new Date(e.starts_at).getTime() >= now - 60 * 60 * 1000)
+      .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
+      .slice(0, 3);
+  }, [events]);
+
   return (
     <>
       {/* HERO */}
@@ -32,20 +112,24 @@ function Home() {
                   Igreja Cristã Nova Vida · Cerâmica
                 </span>
               </div>
-              <InlineEdit
-                as="h1"
-                className="rise-2 mt-6 max-w-[18ch] font-serif text-4xl font-medium leading-tight text-balance sm:text-5xl lg:text-6xl"
-                value="Onde uma nova vida espera por você"
-                onSave={async () => { /* texto da home ainda estático — use páginas dinâmicas para persistir */ }}
-              />
+              <h1 className="rise-2 mt-6 max-w-[18ch] font-serif text-4xl font-medium leading-tight text-balance sm:text-5xl lg:text-6xl">
+                Onde uma nova vida espera por você
+              </h1>
               <p className="rise-2 mt-5 max-w-[46ch] text-base text-pretty text-muted-foreground sm:text-lg">
-                 Uma comunidade acolhedora no coração do bairro, onde cada pessoa é recebida pelo nome e cuidada com fé, Palavra e música.
+                Uma comunidade acolhedora no coração do bairro, onde cada pessoa é
+                recebida pelo nome e cuidada com fé, Palavra e música.
               </p>
               <div className="rise-3 mt-8 flex flex-wrap items-center gap-3">
-                <Link to="/sobre" className="inline-flex items-center gap-2 rounded-full bg-primary py-3 pl-5 pr-4 text-sm font-semibold text-primary-foreground transition-transform hover:-translate-y-0.5">
+                <Link
+                  to="/sobre"
+                  className="inline-flex items-center gap-2 rounded-full bg-primary py-3 pl-5 pr-4 text-sm font-semibold text-primary-foreground transition-transform hover:-translate-y-0.5"
+                >
                   Conheça a igreja <ArrowRight className="size-4 opacity-70" />
                 </Link>
-                <Link to="/agenda" className="inline-flex items-center rounded-full bg-secondary px-5 py-3 text-sm font-semibold ring-1 ring-border transition-transform hover:-translate-y-0.5">
+                <Link
+                  to="/agenda"
+                  className="inline-flex items-center gap-2 rounded-full bg-secondary py-3 px-5 text-sm font-semibold ring-1 ring-border"
+                >
                   Ver agenda
                 </Link>
               </div>
@@ -55,17 +139,35 @@ function Home() {
             </div>
 
             <div className="relative lg:col-span-5">
-              <img
-                src={images.heroChurch}
-                alt="Pessoas se cumprimentando no templo iluminado pela luz da manhã"
-                width={1024}
-                height={1280}
-                className="aspect-[4/5] w-full rounded-[24px] object-cover ring-1 ring-border"
-              />
-              <div className="glass-strong absolute -bottom-5 left-4 max-w-[240px] rounded-[18px] p-4 shadow-lg sm:left-6">
-                <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-accent">Próximo culto</div>
-                <div className="mt-1 font-serif text-lg font-medium">Domingo, 08h</div>
-                <div className="mt-1 text-xs text-muted-foreground">Culto de Celebração</div>
+              <HeroImage src={heroSrc} canEdit={canEdit} onChange={setHeroSrc} />
+              {/* Próximo culto / próxima agenda — fundo opaco */}
+              <div className="absolute -bottom-5 left-4 max-w-[260px] rounded-[18px] border border-border bg-background/95 p-4 shadow-xl backdrop-blur-md sm:left-6">
+                <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-accent">
+                  Próximo culto
+                </div>
+                {nextEvent ? (
+                  <Link to="/agenda/$slug" params={{ slug: nextEvent.slug }} className="block">
+                    <div className="mt-1 font-serif text-lg font-medium leading-snug">
+                      {fmtDate(nextEvent.starts_at, {
+                        weekday: "long",
+                        day: "2-digit",
+                        month: "short",
+                      })}
+                      {" · "}
+                      {fmtTime(nextEvent.starts_at)}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                      {nextEvent.title}
+                    </div>
+                  </Link>
+                ) : (
+                  <>
+                    <div className="mt-1 font-serif text-lg font-medium">Em breve</div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Novos eventos serão publicados na agenda
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -77,17 +179,27 @@ function Home() {
         <Container>
           <div className="glass-strong flex flex-col items-center gap-8 rounded-[28px] px-8 py-12 text-center sm:flex-row sm:justify-between sm:px-16 sm:text-left">
             <div className="flex items-center gap-6">
-              <div className="font-serif text-7xl font-medium leading-none text-accent">{age.years}</div>
+              <span className="font-serif text-7xl font-medium leading-none text-accent">
+                {age.years}
+              </span>
               <div>
-                <div className="font-serif text-2xl font-medium">anos transformando vidas</div>
-                <div className="mt-1 text-sm text-muted-foreground">Servindo a comunidade Cerâmica desde {age.sinceYear}</div>
+                <p className="font-serif text-2xl font-medium">anos transformando vidas</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Servindo a comunidade Cerâmica desde {age.sinceYear}
+                </p>
               </div>
             </div>
             <div className="flex gap-10">
-              {[["1.2k", "Vidas"], ["12", "Redes"], ["40+", "Voluntários"]].map(([n, l]) => (
+              {[
+                ["1.2k", "Vidas"],
+                ["12", "Redes"],
+                ["40+", "Voluntários"],
+              ].map(([n, l]) => (
                 <div key={l} className="text-center">
-                  <div className="font-serif text-3xl font-medium">{n}</div>
-                  <div className="mt-1 text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70">{l}</div>
+                  <p className="font-serif text-3xl font-medium">{n}</p>
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.14em] text-muted-foreground/70">
+                    {l}
+                  </p>
                 </div>
               ))}
             </div>
@@ -95,19 +207,71 @@ function Home() {
         </Container>
       </section>
 
-      {/* EVENTOS */}
-      <section className="py-16 lg:py-20">
-        <Container>
-          <SectionHead
-            eyebrow="Agenda"
-            title="Próximos eventos"
-            action={<Link to="/agenda" className="hidden text-sm font-semibold text-muted-foreground hover:text-foreground sm:block">Ver todos →</Link>}
-          />
-          <div className="grid gap-5 md:grid-cols-3">
-            {events.slice(0, 3).map((e) => <EventCard key={e.slug} e={e} />)}
-          </div>
-        </Container>
-      </section>
+      {/* EVENTOS reais — só se houver */}
+      {upcomingCards.length > 0 && (
+        <section className="py-16 lg:py-20">
+          <Container>
+            <SectionHead
+              eyebrow="Agenda"
+              title="Próximos eventos"
+              action={
+                <Link
+                  to="/agenda"
+                  className="hidden text-sm font-semibold text-muted-foreground hover:text-foreground sm:block"
+                >
+                  Ver todos →
+                </Link>
+              }
+            />
+            <div className="grid gap-5 md:grid-cols-3">
+              {upcomingCards.map((e) => (
+                <Link
+                  key={e.id}
+                  to="/agenda/$slug"
+                  params={{ slug: e.slug }}
+                  className="glass group overflow-hidden rounded-[20px] transition hover:-translate-y-0.5"
+                >
+                  <div className="relative aspect-[16/10] bg-secondary">
+                    {e.cover_path ? (
+                      <img
+                        src={
+                          e.cover_path.startsWith("/") || e.cover_path.startsWith("http")
+                            ? e.cover_path
+                            : `/uploads/${e.cover_path}`
+                        }
+                        alt=""
+                        className="size-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="grid size-full place-items-center text-muted-foreground">
+                        <CalendarDays className="size-10 opacity-40" />
+                      </div>
+                    )}
+                    <div className="absolute left-4 top-4 rounded-2xl bg-background/95 px-3 py-2 text-center shadow-md">
+                      <div className="font-serif text-2xl font-medium leading-none">
+                        {fmtDate(e.starts_at, { day: "2-digit" })}
+                      </div>
+                      <div className="mt-1 text-[10px] uppercase tracking-widest text-muted-foreground">
+                        {fmtDate(e.starts_at, { month: "short" })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-5">
+                    <h3 className="font-serif text-xl font-medium">{e.title}</h3>
+                    {e.summary && (
+                      <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{e.summary}</p>
+                    )}
+                    <div className="mt-4 text-xs font-medium text-muted-foreground">
+                      {fmtDate(e.starts_at, { weekday: "long" })} · {fmtTime(e.starts_at)}
+                      {e.location ? ` · ${e.location}` : ""}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </Container>
+        </section>
+      )}
 
       {/* SERMÕES */}
       <section className="py-16 lg:py-20">
@@ -116,12 +280,22 @@ function Home() {
             <div className="lg:col-span-4">
               <div className="eyebrow">Mensagens</div>
               <h2 className="mt-2 font-serif text-3xl font-medium sm:text-4xl">Mensagem da semana</h2>
-              <p className="mt-4 max-w-[34ch] text-sm text-muted-foreground">A cada domingo, um novo sermão. Ouça aqui no site ou direto no Spotify, onde estiver.</p>
+              <p className="mt-4 max-w-[34ch] text-sm text-muted-foreground">
+                A cada domingo, um novo sermão. Ouça aqui no site ou direto no Spotify, onde estiver.
+              </p>
               <div className="mt-6 flex flex-wrap gap-3">
-                <Link to="/mensagens" className="inline-flex rounded-full bg-secondary px-4 py-2.5 text-sm font-semibold ring-1 ring-border">
+                <Link
+                  to="/mensagens"
+                  className="inline-flex rounded-full bg-secondary px-4 py-2.5 text-sm font-semibold ring-1 ring-border"
+                >
                   Todas as mensagens
                 </Link>
-                <a href={spotify.showUrl} target="_blank" rel="noopener noreferrer" className="inline-flex rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">
+                <a
+                  href={settings?.spotify_show_url || "https://open.spotify.com/"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+                >
                   Abrir no Spotify
                 </a>
               </div>
@@ -142,7 +316,7 @@ function Home() {
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {ministries.slice(0, 4).map((m) => (
               <div key={m.name} className="glass lift rounded-[20px] p-6">
-                <div className="font-serif text-2xl font-medium">{m.name}</div>
+                <p className="font-serif text-2xl font-medium">{m.name}</p>
                 <p className="mt-3 text-sm text-muted-foreground">{m.text}</p>
               </div>
             ))}
@@ -150,27 +324,121 @@ function Home() {
         </Container>
       </section>
 
-      {/* CTA / ONDE ESTAMOS */}
+      {/* ONDE ESTAMOS — dados do admin */}
       <section className="py-16 lg:py-20">
         <Container>
           <div className="grid gap-8 lg:grid-cols-2">
             <div className="glass rounded-[24px] p-8 lg:p-10">
               <div className="eyebrow">Onde estamos</div>
               <h2 className="mt-2 font-serif text-3xl font-medium">Venha nos visitar</h2>
-              <p className="mt-4 max-w-[40ch] text-sm text-muted-foreground">De portas abertas para receber você e sua família no coração do bairro Cerâmica.</p>
+              <p className="mt-4 max-w-[40ch] text-sm text-muted-foreground">
+                De portas abertas para receber você e sua família no coração do bairro Cerâmica.
+              </p>
               <div className="mt-6 space-y-2 text-sm text-muted-foreground">
-                <p>{church.address}</p>
-                <p>{church.phone}</p>
+                <p>{settings?.address || "Endereço em configuração"}</p>
+                <p>{settings?.phone || ""}</p>
               </div>
               <div className="mt-7 flex flex-wrap gap-3">
-                <Link to="/onde-estamos" className="rounded-full bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground">Como chegar</Link>
-                <Link to="/doacao" className="rounded-full bg-secondary px-5 py-3 text-sm font-semibold ring-1 ring-border">Faça uma doação</Link>
+                <Link
+                  to="/onde-estamos"
+                  className="rounded-full bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground"
+                >
+                  Como chegar
+                </Link>
+                <Link
+                  to="/doacao"
+                  className="rounded-full bg-secondary px-5 py-3 text-sm font-semibold ring-1 ring-border"
+                >
+                  Faça uma doação
+                </Link>
               </div>
             </div>
-            <img src={images.community} alt="Famílias da igreja reunidas e sorrindo" loading="lazy" width={1280} height={960} className="min-h-[320px] w-full rounded-[24px] object-cover ring-1 ring-border" />
+            <img
+              src={images.community}
+              alt="Famílias da igreja reunidas e sorrindo"
+              loading="lazy"
+              width={1280}
+              height={960}
+              className="min-h-[320px] w-full rounded-[24px] object-cover ring-1 ring-border"
+            />
           </div>
         </Container>
       </section>
     </>
+  );
+}
+
+function HeroImage({
+  src,
+  canEdit,
+  onChange,
+}: {
+  src: string;
+  canEdit: boolean;
+  onChange: (url: string) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  const onFile = async (file?: File) => {
+    if (!file || !canEdit) return;
+    setBusy(true);
+    try {
+      const buf = await file.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+      const base64 = btoa(binary);
+      const mime = (["image/jpeg", "image/png", "image/webp"].includes(file.type)
+        ? file.type
+        : "image/jpeg") as "image/jpeg" | "image/png" | "image/webp";
+      const result = await uploadImageFn({
+        data: { filename: file.name, mime, base64 },
+      });
+      if (!result.ok) {
+        toast.error(result.error || "Falha no envio");
+        return;
+      }
+      const url = `/uploads/${result.path}`;
+      await saveTextOverrideFn({ data: { path: "/", key: "hero-image", value: result.path } });
+      onChange(url);
+      toast.success("Imagem do hero atualizada");
+    } catch (e) {
+      console.error(e);
+      toast.error("Não foi possível trocar a imagem");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <img
+        src={src}
+        alt="Templo e comunidade"
+        width={1024}
+        height={1280}
+        className={`aspect-[4/5] w-full rounded-[24px] object-cover ring-1 ring-border ${canEdit ? "cursor-pointer" : ""}`}
+        onClick={() => canEdit && inputRef.current?.click()}
+        title={canEdit ? "Clique para trocar a imagem" : undefined}
+      />
+      {canEdit && (
+        <button
+          type="button"
+          className="absolute right-3 top-3 rounded-full bg-background/95 px-3 py-1.5 text-xs font-semibold shadow-md ring-1 ring-border"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+        >
+          {busy ? "Enviando…" : "Trocar imagem"}
+        </button>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => onFile(e.target.files?.[0])}
+      />
+    </div>
   );
 }

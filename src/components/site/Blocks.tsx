@@ -41,10 +41,10 @@ export function ServiceTimes() {
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {serviceTimes.map((s) => (
         <div key={s.day} className="rounded-[16px] bg-secondary p-4 shadow-sm ring-1 ring-border">
-          <div className="font-serif text-2xl font-medium">{s.day}</div>
-          <div className="mt-2 text-xs text-muted-foreground">
+          <p className="font-serif text-2xl font-medium">{s.day}</p>
+          <p className="mt-2 text-xs text-muted-foreground">
             {s.time} · {s.day === "Domingo" ? "Celebração" : s.label}
-          </div>
+          </p>
         </div>
       ))}
     </div>

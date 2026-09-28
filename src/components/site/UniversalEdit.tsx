@@ -9,7 +9,7 @@ import { useSession } from "@/lib/admin";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-const TAGS = new Set(["P", "H1", "H2", "H3", "H4", "H5", "H6", "SPAN", "A", "BUTTON", "LABEL", "LI", "TD", "TH"]);
+const TAGS = new Set(["P", "H1", "H2", "H3", "H4", "H5", "H6", "SPAN", "A", "BUTTON", "LABEL", "LI", "TD", "TH", "DIV", "STRONG", "EM", "TIME"]);
 
 export const saveTextOverrideFn = createServerFn({ method: "POST" })
   .inputValidator((d) =>
@@ -115,7 +115,8 @@ export function UniversalEdit() {
         el = el.parentElement;
       }
       if (!el || !TAGS.has(el.tagName)) return;
-      if (el.closest("[data-no-edit]") || el.closest("nav input") || el.isContentEditable) return;
+      if (el.closest("[data-no-edit]") || el.closest("nav input") || el.closest("input, textarea, select") || el.isContentEditable) return;
+      if (el.tagName === "IMG" || el.closest("img")) return;
       // não editar dentro do painel admin
       if (pathname.startsWith("/admin")) return;
 
