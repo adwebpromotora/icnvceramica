@@ -158,9 +158,38 @@ export function useMediaUrl(path?: string | null) {
 
 export const loginFn = createServerFn({ method: "POST" })
   .inputValidator((d) =>
-    z.object({ email: z.string().email(), password: z.string().min(8).max(72) }).parse(d),
+    z
+      .object({
+        email: z.string().email(),
+        password: z.string().min(8).max(72),
+        recaptchaToken: z.string().optional(),
+      })
+      .parse(d),
   )
   .handler(async ({ data }) => {
+    // reCAPTCHA (se secret configurada)
+    const secret =
+      process.env.RECAPTCHA_SECRET_KEY || process.env.RECAPTCHA_LOGIN_SECRET_KEY || "";
+    if (secret) {
+      const token = data.recaptchaToken || "";
+      if (!token) return { ok: false as const, error: "Confirme o reCAPTCHA." };
+      try {
+        const body = new URLSearchParams({
+          secret,
+          response: token,
+        });
+        const res = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body,
+        });
+        const json = (await res.json()) as { success?: boolean };
+        if (!json.success) return { ok: false as const, error: "reCAPTCHA inválido. Tente de novo." };
+      } catch {
+        return { ok: false as const, error: "Falha ao validar reCAPTCHA." };
+      }
+    }
+
     const { login, sessionCookieHeader } = await import("@/server/auth");
     const result = await login(data.email, data.password);
     if (!result.ok) return result;

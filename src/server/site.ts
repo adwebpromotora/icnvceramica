@@ -24,6 +24,8 @@ export type SiteSettings = {
   accent_color: string;
   show_back_to_top: number;
   gtm_id: string | null;
+  maintenance_mode?: number | boolean;
+  maintenance_message?: string | null;
 };
 
 export async function getSettings(): Promise<SiteSettings> {
@@ -47,6 +49,8 @@ export async function getSettings(): Promise<SiteSettings> {
     accent_color: "#d4a574",
     show_back_to_top: 1,
     gtm_id: null,
+    maintenance_mode: 0,
+    maintenance_message: null,
   };
 }
 

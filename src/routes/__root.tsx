@@ -16,6 +16,7 @@ import { SiteFooter } from "@/components/site/SiteFooter";
 import { BackToTop } from "@/components/site/BackToTop";
 import { AdminEditBanner } from "@/components/site/InlineEdit";
 import { UniversalEdit } from "@/components/site/UniversalEdit";
+import { MaintenanceGate } from "@/components/site/MaintenanceGate";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -104,18 +105,20 @@ function RootComponent() {
   const isAdmin = pathname.startsWith("/admin");
   return (
     <QueryClientProvider client={queryClient}>
-      {isAdmin ? <Outlet /> : (
-        <>
-          <SiteHeader />
-          <main>
-            <Outlet />
-          </main>
-          <SiteFooter />
-          <BackToTop />
-          <AdminEditBanner />
-          <UniversalEdit />
-        </>
-      )}
+      <MaintenanceGate>
+        {isAdmin ? <Outlet /> : (
+          <>
+            <SiteHeader />
+            <main>
+              <Outlet />
+            </main>
+            <SiteFooter />
+            <BackToTop />
+            <AdminEditBanner />
+            <UniversalEdit />
+          </>
+        )}
+      </MaintenanceGate>
       <Toaster richColors position="top-center" />
     </QueryClientProvider>
   );

@@ -40,3 +40,20 @@ export const listPublicMenuPagesFn = createServerFn({ method: "GET" }).handler(a
 export const getPublicPageFn = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ slug: z.string() }).parse(d))
   .handler(async ({ data }) => getPageBySlug(data.slug));
+
+
+export const getMaintenanceFn = createServerFn({ method: "GET" }).handler(async () => {
+  const s = await getSettings();
+  const on = s.maintenance_mode === 1 || s.maintenance_mode === true;
+  return {
+    active: Boolean(on),
+    message:
+      (s.maintenance_message && String(s.maintenance_message).trim()) ||
+      "Estamos em manutenção. Em breve voltamos com novidades. Obrigado pela compreensão!",
+  };
+});
+
+export const getRecaptchaPublicFn = createServerFn({ method: "GET" }).handler(async () => {
+  const siteKey = process.env.RECAPTCHA_SITE_KEY || process.env.RECAPTCHA_LOGIN_SITE_KEY || "";
+  return { siteKey: siteKey.trim() };
+});

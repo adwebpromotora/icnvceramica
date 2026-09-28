@@ -33,6 +33,7 @@ function normalizeLoaded(row: Record<string, unknown> | null): Record<string, un
   }
   s.show_back_to_top = Boolean(s.show_back_to_top);
   s.smtp_secure = Boolean(s.smtp_secure);
+  s.maintenance_mode = Boolean(s.maintenance_mode);
   return s;
 }
 
@@ -68,6 +69,8 @@ function Settings() {
         primary_color: s.primary_color ?? "#1e3a5f",
         accent_color: s.accent_color ?? "#d4a574",
         show_back_to_top: Boolean(s.show_back_to_top),
+        maintenance_mode: Boolean(s.maintenance_mode),
+        maintenance_message: s.maintenance_message ?? "",
       };
       if (role === "admin") {
         payload.gtm_id = s.gtm_id || null;
@@ -173,6 +176,29 @@ function Settings() {
               />
               Exibir no site
             </label>
+          </Row>
+        </section>
+
+        
+        <section className="glass grid gap-4 rounded-2xl p-6">
+          <h2 className="font-serif text-xl">Manutenção do site</h2>
+          <Row label="Modo manutenção" hint="Com ativo, visitantes veem apenas a página de manutenção. O painel /admin continua acessível.">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={Boolean(s.maintenance_mode)}
+                onChange={(e) => setS({ ...s, maintenance_mode: e.target.checked })}
+              />
+              Site em manutenção
+            </label>
+          </Row>
+          <Row label="Mensagem exibida">
+            <textarea
+              className={inputCls + " min-h-[80px]"}
+              value={String(s.maintenance_message ?? "")}
+              onChange={set("maintenance_message")}
+              placeholder="Estamos em manutenção. Em breve voltamos..."
+            />
           </Row>
         </section>
 

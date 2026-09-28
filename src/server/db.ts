@@ -220,6 +220,17 @@ export async function ensureSchema(): Promise<void> {
     for (const sql of statements) {
       await conn.query(sql);
     }
+    // migrações leves (idempotentes)
+    for (const sql of [
+      "ALTER TABLE site_settings ADD COLUMN maintenance_mode TINYINT(1) NOT NULL DEFAULT 0",
+      "ALTER TABLE site_settings ADD COLUMN maintenance_message TEXT NULL",
+    ]) {
+      try {
+        await conn.query(sql);
+      } catch {
+        /* coluna já existe */
+      }
+    }
     schemaReady = true;
   } finally {
     conn.release();

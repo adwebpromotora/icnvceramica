@@ -139,6 +139,8 @@ export const saveSettings = createServerFn({ method: "POST" })
       "primary_color",
       "accent_color",
       "show_back_to_top",
+      "maintenance_mode",
+      "maintenance_message",
     ] as const;
     const adminOnly = [
       "gtm_id",
@@ -164,7 +166,7 @@ export const saveSettings = createServerFn({ method: "POST" })
         const n = Number(v);
         return Number.isFinite(n) ? n : null;
       }
-      if (k === "show_back_to_top" || k === "smtp_secure") {
+      if (k === "show_back_to_top" || k === "smtp_secure" || k === "maintenance_mode") {
         return v === true || v === 1 || v === "1" ? 1 : 0;
       }
       return v;
