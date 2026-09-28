@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ICNV">
+  <rect width="64" height="64" rx="14" fill="#1e3a5f"/>
+  <text x="32" y="38" text-anchor="middle" font-family="Georgia, serif" font-size="18" font-weight="700" fill="#f5f0e8">ICNV</text>
+  <rect x="12" y="48" width="40" height="4" rx="1" fill="#d4a574"/>
+</svg>
