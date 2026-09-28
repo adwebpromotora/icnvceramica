@@ -60,7 +60,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "ICNV Cerâmica — Igreja Cristã Nova Vida" },
       { name: "description", content: "Igreja Cristã Nova Vida em Cerâmica: uma família de fé no bairro." },
       { property: "og:type", content: "website" },

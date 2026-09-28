@@ -72,16 +72,16 @@ export function AdminShell({ title, actions, children }: { title: string; action
       )}
       <div className="min-w-0">
         <header className="flex items-center gap-3 border-b border-border px-5 py-4 lg:px-10">
-          <button className="lg:hidden" aria-label="Abrir menu" onClick={() => setOpen(true)}>{open ? <X /> : <Menu />}</button>
+          <button type="button" className="grid size-11 min-h-11 min-w-11 place-items-center rounded-full ring-1 ring-border lg:hidden" aria-label="Abrir menu" onClick={() => setOpen(true)}>{open ? <X className="size-5" /> : <Menu className="size-5" />}</button>
           <h1 className="font-serif text-2xl">{title}</h1>
           <div className="ml-auto flex gap-2">{actions}</div>
         </header>
-        <div className="p-5 lg:p-10">{children}</div>
+        <div className="p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] lg:p-10">{children}</div>
       </div>
     </div>
   );
 }
 
-export const inputCls = "w-full rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring";
-export const btnPrimary = "inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-transform hover:-translate-y-0.5 disabled:opacity-60";
-export const btnGhost = "inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-secondary";
+export const inputCls = "w-full rounded-lg border border-border bg-card px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring min-h-11";
+export const btnPrimary = "inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-transform hover:-translate-y-0.5 disabled:opacity-60";
+export const btnGhost = "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-medium hover:bg-secondary";

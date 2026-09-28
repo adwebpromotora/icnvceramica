@@ -115,7 +115,7 @@ function Home() {
                   Igreja Cristã Nova Vida · Cerâmica
                 </span>
               </div>
-              <h1 className="rise-2 mt-6 max-w-[18ch] font-serif text-4xl font-medium leading-tight text-balance sm:text-5xl lg:text-6xl">
+              <h1 className="rise-2 mt-6 max-w-[20ch] font-serif text-[1.85rem] font-medium leading-[1.15] text-balance xs:text-4xl sm:text-5xl lg:text-6xl">
                 Onde uma nova vida espera por você
               </h1>
               <p className="rise-2 mt-5 max-w-[46ch] text-base text-pretty text-muted-foreground sm:text-lg">

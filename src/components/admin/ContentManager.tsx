@@ -248,10 +248,10 @@ export function ContentManager({
                       ))}
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
-                          <button className={btnGhost} onClick={() => setEdit({ ...r })} aria-label="Editar">
+                          <button className={btnGhost + " !min-h-11 !min-w-11 !px-3"} onClick={() => setEdit({ ...r })} aria-label="Editar">
                             <Pencil className="size-4" />
                           </button>
-                          <button className={btnGhost} onClick={() => remove(r)} aria-label="Excluir">
+                          <button className={btnGhost + " !min-h-11 !min-w-11 !px-3"} onClick={() => remove(r)} aria-label="Excluir">
                             <Trash2 className="size-4" />
                           </button>
                         </div>

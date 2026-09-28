@@ -40,8 +40,8 @@ export function SiteHeader() {
   }, []);
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40">
-      <div className="mx-auto max-w-7xl px-5 pt-4 sm:px-8">
+    <header className="fixed inset-x-0 top-0 z-40 pt-[env(safe-area-inset-top)]">
+      <div className="mx-auto max-w-7xl px-5 pt-3 sm:px-8 sm:pt-4">
         <div className="glass-strong flex items-center gap-4 rounded-[22px] px-4 py-3 shadow-sm sm:px-5">
           <Logo small />
           <nav className="ml-auto hidden items-center gap-6 text-sm text-muted-foreground lg:flex">
@@ -81,12 +81,12 @@ export function SiteHeader() {
           <div className="flex items-center gap-2">
             <Link
               to="/onde-estamos"
-              className="hidden h-9 items-center rounded-full bg-accent px-4 text-sm font-semibold text-accent-foreground transition-transform hover:-translate-y-0.5 sm:inline-flex"
+              className="hidden min-h-11 items-center rounded-full bg-accent px-4 text-sm font-semibold text-accent-foreground transition-transform hover:-translate-y-0.5 sm:inline-flex"
             >
               Visite-nos
             </Link>
             <button
-              className="grid size-10 place-items-center rounded-full ring-1 ring-border lg:hidden"
+              className="grid size-11 min-h-11 min-w-11 place-items-center rounded-full ring-1 ring-border lg:hidden"
               aria-label={open ? "Fechar menu" : "Abrir menu"}
               aria-expanded={open}
               onClick={() => setOpen((o) => !o)}

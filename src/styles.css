@@ -103,12 +103,24 @@
   }
   html {
     scroll-behavior: smooth;
+    /* iPhone notch / home indicator */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+  }
+  /* Alvos de toque mínimos em dispositivos touch */
+  @media (pointer: coarse) {
+    button:not([data-compact]),
+    a.rounded-full,
+    [role="button"] {
+      min-height: 44px;
+    }
   }
   /* Telas grandes (TVs): escala tipográfica ampliada */
   @media (min-width: 1920px) {
@@ -125,7 +137,13 @@
     radial-gradient(60% 55% at 12% 8%, oklch(from var(--accent) l c h / 0.18) 0%, transparent 60%),
     radial-gradient(50% 50% at 88% 12%, oklch(from var(--primary) l c h / 0.1) 0%, transparent 60%),
     radial-gradient(45% 45% at 78% 92%, oklch(from var(--accent-soft) l c h / 0.3) 0%, transparent 60%);
-  background-attachment: fixed;
+  /* fixed quebra em muitos iOS; só em desktop com ponteiro fino */
+  background-attachment: scroll;
+}
+@media (min-width: 1024px) and (pointer: fine) {
+  .mesh {
+    background-attachment: fixed;
+  }
 }
 
 @utility glass {
@@ -181,4 +199,36 @@
   & ul { list-style: disc; padding-left: 1.25rem; margin-bottom: 1rem; }
   & a { color: var(--accent); text-decoration: underline; }
   & blockquote { border-left: 3px solid var(--accent); padding-left: 1rem; font-family: var(--font-serif); font-style: italic; color: var(--foreground); }
+}
+
+
+@utility embed-frame {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 14px;
+  & iframe {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    min-height: 152px;
+    border: 0;
+    border-radius: 12px;
+  }
+}
+
+/* Embeds dentro do conteúdo rico */
+.prose-church .embed-frame,
+.prose-church iframe {
+  display: block;
+  width: 100% !important;
+  max-width: 100%;
+  margin: 1rem 0;
+  border-radius: 12px;
+}
+.prose-church img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
 }

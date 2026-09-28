@@ -81,7 +81,7 @@ export function AdminEditBanner() {
   const { role, loading } = useSession();
   if (loading || (role !== "admin" && role !== "editor")) return null;
   return (
-    <div className="fixed bottom-4 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground shadow-lg">
+    <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-[60] max-w-[min(92vw,28rem)] -translate-x-1/2 rounded-full bg-primary px-4 py-2.5 text-center text-xs font-medium text-primary-foreground shadow-lg">
       Modo edição ativo — clique nos textos com contorno para editar
     </div>
   );

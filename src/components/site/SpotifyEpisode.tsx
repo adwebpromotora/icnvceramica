@@ -27,13 +27,15 @@ export function SpotifyEpisode({ compact = false }: { compact?: boolean }) {
       .catch(() => {});
   }, []);
   return (
-    <iframe
-      title="Mensagem da semana no Spotify"
-      src={src}
-      className="w-full rounded-[14px]"
-      height={compact ? 152 : 232}
-      loading="lazy"
-      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-    />
+    <div className="embed-frame w-full">
+      <iframe
+        title="Mensagem da semana no Spotify"
+        src={src}
+        className="w-full rounded-[14px]"
+        style={{ height: compact ? 152 : 232, minHeight: compact ? 152 : 232 }}
+        loading="lazy"
+        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+      />
+    </div>
   );
 }
